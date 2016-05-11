@@ -1,0 +1,187 @@
+#!/bin/bash
+
+#TODO: Setup all variables as required. 
+
+# Slack incoming web-hook URL and user name
+url='{{ slackurl }}'
+username='Zabbix'
+field_debug_file=/home/zabbix/slack-debug.txt
+# NOTE: The following URL needs backslashes escaped
+zabbix_url='{{ zabbix_url }}'
+
+## Values received by this script:
+# To = $1 (Slack channel or user to send the message to, specified in the Zabbix web interface;
+#          "@username" or "#channel")
+# Message = $2 (Interpreted as 2 fields with a space as the delimiter. The first field is
+#               expected to be 'PROBLEM' or 'RECOVERY'. The second field is expected to be
+#               the name of the issue)
+# Details = $3 (Interpreted as a series of key/value fields. Each pair is on a new line and the
+#               key and value are separated by a space. The supported keys are:
+#                  - EVENT.ID
+#                  - EVENT.AGE
+#                  - EVENT.ACK.STATUS
+#                  - EVENT.RECOVERY.ID
+#                  - HOST.CONN
+#                  - INVENTORY.LOCATION
+#                  - IPADDRESS
+#                  - TRIGGER.ID)
+#
+#See below for more detials on how to setup in zabbix
+
+# Get the Slack channel or user ($1)
+to="$1"
+
+# Separate the message into the type and name
+message="$2"
+
+# Split the message into the 'type' and 'name' using a space as the delimiter
+IFS=' '
+read -r message_type message_name <<< "${message}"
+IFS=$'\n'
+message_type="$(printf '%s' ${message_type} | tr -d '[[:space:]]')"
+
+# Parse the message details for the rest of the variables we want
+while IFS= read -r line
+do
+   IFS=' ' read key value <<<${line}
+   if [ "${key}" == "EVENT.AGE" ]; then
+      event_age="$(echo -e "${value}" | tr -d '\n' | tr -d '\r')"
+   elif [ "${key}" == "EVENT.ACK.STATUS" ]; then
+      event_ack_status="$(echo -e "${value}" | tr -d '\n' | tr -d '\r')"
+   elif [ "${key}" == "EVENT.ID" ]; then
+      event_id="$(echo -e "${value}" | tr -d '\n' | tr -d '\r')"
+   elif [ "${key}" == "EVENT.RECOVERY.ID" ]; then
+      event_recovery_id="$(echo -e "${value}" | tr -d '\n' | tr -d '\r')"
+   elif [ "${key}" == "HOST.CONN" ]; then
+      host_conn="$(echo -e "${value}" | tr -d '\n' | tr -d '\r')"
+   elif [ "${key}" == "INVENTORY.LOCATION" ]; then
+      inventory_location="$(echo -e "${value}" | tr -d '\n' | tr -d '\r')"
+   elif [ "${key}" == "IPADDRESS" ]; then
+      ipaddress="$(echo -e "${value}" | tr -d '\n' | tr -d '\r')"
+   elif [ "${key}" == "TRIGGER.ID" ]; then
+      trigger_id="$(echo -e "${value}" | tr -d '\n' | tr -d '\r')"
+   elif [ "${key}" == "---" ]; then
+      read -d '^' -r free_text
+         fi
+done <<EOT
+$(printf '%s\n' "$3")
+EOT
+
+# Always set the emoji to the pager symbol
+emoji=':pager:'
+
+# Change message attachment colour depending on the message_type and the ack status.
+# - A PROBLEM that is not acknowledged is red
+# - A PROBLEM that is acknowledged is orange
+# - A RECOVERY is green
+# - None of the above is grey
+if [ "${message_type}" == "RECOVERY" ]; then
+        color='#00FF00'
+elif [ "${message_type}" == "PROBLEM" ]; then
+    if [ "${event_ack_status}" == "Yes" ]; then
+        message_type="ACKNOWLEDGED"
+        color='#FFA500'
+    else
+        color='#FF0000'
+    fi
+else
+        color='#BEBEBE'
+fi
+
+# Print the variables to a debugging file
+FIELD_DEBUG_FILE=/home/zabbix/test.txt
+printf 'Slack message detail variables:\n' > ${field_debug_file}
+printf 'to=%s, message_type=%s\n' ${to} ${message_type} >> ${field_debug_file}
+printf 'message_name=%s\n' ${message_name} >> ${field_debug_file}
+printf 'emoji=%s, color=%s\n' ${emoji} ${color} >> ${field_debug_file}
+printf 'event_age=%s, event_id=%s\n' ${event_age} ${event_id} >> ${field_debug_file}
+printf 'event_ack_status=%s\n' ${event_ack_status} >> ${field_debug_file}
+printf 'event_recovery_id=%s\n' ${event_recovery_id} >> ${field_debug_file}
+printf 'inventory_location=%s\n' ${inventory_location} >> ${field_debug_file}
+printf 'host_conn=%s, ipaddress=%s\n' ${host_conn} ${ipaddress} >> ${field_debug_file}
+printf 'trigger_id=%s\n' ${trigger_id} >> ${field_debug_file}
+printf 'free_text=%s\n' ${free_text} >> ${field_debug_file}
+
+first_field=true
+
+# Add the 'Duration' field if the EVENT.AGE was passed in
+if [ "${event_age}" != "" ]; then
+   duration_field="{\"title\": \"Duration\", \"value\": \"${event_age}\", \"short\": true}"
+   if [ "$first_field" = true ]; then
+      fields="$(printf '%s' ${duration_field})"
+      first_field=false
+   else
+      fields="$(printf '%s, %s' ${fields} ${duration_field})"
+   fi
+fi
+# Add the 'Location' field if the INVENTORY.LOCATION was passed in
+if [ "${inventory_location}" != "" ]; then
+   location_field="{\"title\": \"Location\", \"value\": \"${inventory_location}\", \"short\": true}"
+   if [ "$first_field" = true ]; then
+      fields="$(printf '%s' ${location_field})"
+      first_field=false
+   else
+      fields="$(printf '%s, %s' ${fields} ${location_field})"
+   fi
+fi
+
+# Add the 'IP Address' field if the HOST.CONN was passed in
+if [ "${host_conn}" != "" ]; then
+   ipaddress_field="{\"title\": \"IP Address\", \"value\": \"<http:\/\/${host_conn}|${host_conn}>\", \"short\": true}"
+   if [ "$first_field" = true ]; then
+      fields="$(printf '%s' ${ipaddress_field})"
+      first_field=false
+   else
+      fields="$(printf '%s, %s' ${fields} ${ipaddress_field})"
+   fi
+fi
+
+# Add the 'Actions' field if the mix of variables is right (see below) !
+if [[ ( "${event_id}" != "" && ( "${message_type}" == "PROBLEM" || "${message_type}" == "ACKNOWLEDGED" ) ) ]]; then
+   actions_value="<${zabbix_url}\/acknow.php?eventid=${event_id}|Acknowledge>"
+   if [ "${trigger_id}" != "" ]; then
+      actions_value="${actions_value}|<${zabbix_url}\/tr_events.php?eventid=${event_id}&triggerid=${trigger_id}|Events>"
+   fi
+elif [[ ( "${trigger_id}" != "" && "${event_recovery_id}" != "" && "${message_type}" == "RECOVERY" ) ]]; then
+   actions_value="<${zabbix_url}\/tr_events.php?eventid=${event_recovery_id}&triggerid=${trigger_id}|Events>"
+fi
+if [ "${actions_value}" != "" ]; then
+   actions_field="{\"title\": \"Actions\", \"value\": \"${actions_value}\", \"short\": true}"
+   if [ "$first_field" = true ]; then
+      fields="$(printf '%s' ${actions_field})"
+      first_field=false
+   else
+      fields="$(printf '%s, %s' ${fields} ${actions_field})"
+   fi
+fi
+
+# Add the free text field if it was supplied
+#if [ "${free_text}" != "" ]; then
+#   free_text_fix1="$(echo ${free_text//\"/\\\"})"
+#   free_text_field="$(echo "{\"title\": \"Details\", \"value\": \"${free_text_fix2}\"}")"
+#   if [ "$first_field" = true ]; then
+#      fields="${free_text_field}"
+#      first_field=false
+#   else
+#      fields="${fields}, ${free_text_field}"
+#   fi
+#fi
+
+# Always include an 'attachment'
+attachment="\"fallback\": \"${message_type}: ${message_name}\", \"color\": \"${color}\""
+
+# If the fields are defined, add them to the attachment
+if [ -n "$fields" ]; then
+   attachment="${attachment}, \"fields\": [${fields}]"
+fi
+
+# Build our JSON payload and send it as a POST request to the Slack incoming web-hook URL
+payload="payload={\"channel\": \"${to}\", \"username\": \"${username}\", \"text\": \"<!channel>\\n*${message_type}:* ${message_name}\", \"icon_emoji\": \"${emoji}\", \"attachments\": [{${attachment}}]}"
+printf "%s\n" ${payload} > /home/zabbix/slack-payload.txt
+#uncomment below for proxy
+#curl -m 5 -x http://10.10.1.77:3128 --data-urlencode "${payload}" $url
+curl -m 5 --data-urlencode "${payload}" $url
+
+#TODO: How to setup in zabbix section.
+#-- How to setup in zabbix:
+

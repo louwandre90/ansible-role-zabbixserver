@@ -1,0 +1,44 @@
+-- *****************************************************************   
+-- Copyright (c) 2005-2007 EPCglobal Inc(tm), All Rights Reserved.
+-- *****************************************************************   
+EPCGLOBAL-SMI-MIB DEFINITIONS ::= BEGIN
+                                        
+IMPORTS
+     enterprises,
+     MODULE-IDENTITY
+          FROM SNMPv2-SMI;
+
+
+epcglobal MODULE-IDENTITY
+     LAST-UPDATED "200610040000Z"
+     ORGANIZATION "EPCglobal, Inc."
+     CONTACT-INFO         
+          "     EPCglobal MIB Administrator
+                GS1/EPCglobal, Inc.
+                Princeton Pike Corporate Center
+                1009 Lenox Drive, Suite 202
+                Lawrenceville, NJ 08648
+                US
+
+                Tel:   +1 609 620 0200
+                Email: mibs@lists.epcglobalinc.org"
+     DESCRIPTION
+          "The EPCglobal central registration module, containing
+          the top-level organization of the EPCglobal private 
+          enterprise namespace."
+
+     REVISION     "200610040000Z"
+
+     DESCRIPTION
+          "Defined in conformance with the EPCglobal Reader Management and
+           Reader Protocol specifications"
+
+     ::= {enterprises 22695}  -- assigned by IANA
+
+     --
+     -- The EPCglobal private enterprise number assigned by 
+     -- the Internet Assigned Numbers Authority (IANA).
+     --
+     epcgSmiManagement          OBJECT IDENTIFIER ::= { epcglobal 1 }
+     epcgSmiExperimental        OBJECT IDENTIFIER ::= { epcglobal 2 }
+END

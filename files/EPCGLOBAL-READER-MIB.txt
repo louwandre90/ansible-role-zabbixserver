@@ -1,0 +1,2839 @@
+EPCGLOBAL-READER-MIB DEFINITIONS ::= BEGIN
+                                        
+IMPORTS
+     Gauge32,
+     Integer32,
+     MODULE-IDENTITY, 
+     NOTIFICATION-TYPE, 
+     OBJECT-TYPE,
+     Unsigned32,
+     Counter32
+          FROM SNMPv2-SMI
+          
+     SnmpAdminString
+          FROM SNMP-FRAMEWORK-MIB
+          
+     DateAndTime,
+     RowPointer, 
+     RowStatus,
+     TEXTUAL-CONVENTION, 
+     TruthValue
+          FROM SNMPv2-TC
+          
+     MODULE-COMPLIANCE, 
+     NOTIFICATION-GROUP,
+     OBJECT-GROUP
+          FROM SNMPv2-CONF
+          
+     InetAddress, 
+     InetAddressType
+          FROM INET-ADDRESS-MIB
+          
+     sysName
+          FROM SNMPv2-MIB
+          
+     epcgSmiManagement
+          FROM EPCGLOBAL-SMI-MIB;
+          
+epcgReaderMIB MODULE-IDENTITY
+     LAST-UPDATED "200703080000Z"
+     ORGANIZATION "EPCglobal, Inc."
+     CONTACT-INFO         
+          "     EPCglobal MIB Administrator
+                GS1/EPCglobal, Inc.
+                Princeton Pike Corporate Center
+                1009 Lenox Drive, Suite 202
+                Lawrenceville, NJ 08648
+                US
+
+                Tel:   +1 609 620 0200
+                Email: mibs@lists.epcglobalinc.org"
+     DESCRIPTION
+          "The MIB Module describing an EPCglobal compliant RFID reader."
+          
+     REVISION     "200703080000Z"
+
+     DESCRIPTION
+          "Defined in conformance with the EPCglobal Reader Management and
+           Reader Protocol specifications.
+           
+           Abbreviations:
+           
+           DHCP   - Dynamic Host Configuration Protocol
+           DNS    - Domain Name System
+           EPC    - Electronic Product Code
+           URI    - Uniform Resource Identifier
+           RFID   - Radio Frequency Identification
+           UTC    - Coordinated Universal Time
+           
+          Reference EPCglobal Reader Protocol Specification 1.1"
+
+     ::= {epcgSmiManagement 1}
+
+--*******************************************************************
+--** The EPCglobal Reader MIB module sub-trees
+--*******************************************************************
+epcgReaderNotifs         OBJECT IDENTIFIER ::= { epcgReaderMIB 0 }
+epcgReaderObjects        OBJECT IDENTIFIER ::= { epcgReaderMIB 1 }
+epcgReaderConformance    OBJECT IDENTIFIER ::= { epcgReaderMIB 2 }
+epcgReaderDevice         OBJECT IDENTIFIER ::= { epcgReaderObjects 1 }
+epcgReadPoints           OBJECT IDENTIFIER ::= { epcgReaderObjects 2 }
+epcgAntennaReadPoints    OBJECT IDENTIFIER ::= { epcgReaderObjects 3 }
+epcgIoPorts              OBJECT IDENTIFIER ::= { epcgReaderObjects 4 }
+epcgSources              OBJECT IDENTIFIER ::= { epcgReaderObjects 5 }
+epcgNotificationChannels OBJECT IDENTIFIER ::= { epcgReaderObjects 6 }
+epcgTriggers             OBJECT IDENTIFIER ::= { epcgReaderObjects 7 }
+
+
+--*******************************************************************
+--** Textual Conventions used by EPCglobal Reader MIB modules      **
+--*******************************************************************
+
+EpcgCurrentCountSinceReset ::= TEXTUAL-CONVENTION
+    STATUS  current
+    DESCRIPTION
+       "A counter that always increments until it is reset."
+     SYNTAX  Gauge32
+
+EpcgNotifLevel ::= TEXTUAL-CONVENTION
+    STATUS      current
+    DESCRIPTION
+        "Severity level of an notification."
+    SYNTAX INTEGER {
+        emergency (0),
+        alert (1),
+        critical (2),
+        error (3),
+        warning (4),
+        notice (5),
+        informational (6),
+        debug (7)
+    }
+    
+EpcgOperationalEnable ::= TEXTUAL-CONVENTION
+    STATUS            current
+    DESCRIPTION
+        "Each bit represent whether a particular state defined
+         by the EpcgOperationalStatus is enable for notifications."
+    SYNTAX  BITS { unknown(0),
+                   other  (1),
+                   up     (2),
+                   down   (3)
+                 }  
+                 
+EpcgOperationalStatus ::= TEXTUAL-CONVENTION
+    STATUS            current
+    DESCRIPTION
+        "A value representing operational status."
+    SYNTAX INTEGER { unknown (1),
+                     other (2),
+                     up (3),
+                     down (4)
+                   }
+
+EpcgAdministrativeStatus ::= TEXTUAL-CONVENTION
+    STATUS            current
+    DESCRIPTION
+        "A value representing administrative status."
+    SYNTAX INTEGER { up (3),
+                     down (4)
+		   }
+                
+EpcgThreshold ::= TEXTUAL-CONVENTION
+    STATUS          current
+    DESCRIPTION
+       "This textual convention defines the allowed values
+        used to define a threshold."
+    SYNTAX Unsigned32 (0..4294967295)
+      
+EpcgTriggerType ::= TEXTUAL-CONVENTION
+    STATUS      current
+    DESCRIPTION "The types of allowed triggers."
+    SYNTAX INTEGER { none (1),
+                     timer (2),
+                     continuous (3),
+                     ioEdge (4),
+                     vendorExtension (5),
+                     ioValue (6)
+                   }
+                   
+                   
+                  
+--*******************************************************************
+--** Reader Notifications                                          **
+--*******************************************************************
+
+epcgReaderDeviceOperationState NOTIFICATION-TYPE
+    OBJECTS { sysName, 
+              epcgRdrDevTimeUtc,
+              epcgRdrDevOperNotifStateLevel,
+              epcgRdrDevOperStatusPrior,
+              epcgRdrDevOperStatus
+            }
+    STATUS current
+    DESCRIPTION
+        "This notification is generated when a reader device
+         undergoes a change in operational status.  In some 
+         environment certain states may be transitory and
+         do not need to generate notifications.  In addition,
+         a device may cycle between two states.  Therefore, 
+         notifications will be generated whenever the state 
+         transitions into a state enabled for notifications
+         as defined by the epcgRdrDevOperNotifToState
+         object.  Also, notifications will be generate whenever
+         the state transitions out of a state define by the
+         epcgRdrDevOperNotifFromState object.  The 
+         epcgRdrDevOperStateSuppressInterval object can be 
+         configured  to suppress the excessive generation of
+         notifications."
+    ::= { epcgReaderNotifs 1 }
+
+epcgRdrDevMemoryState NOTIFICATION-TYPE
+    OBJECTS { sysName, 
+              epcgRdrDevTimeUtc, 
+              epcgRdrDevFreeMemoryNotifLevel, 
+              epcgRdrDevFreeMemory 
+            }
+    STATUS current
+    DESCRIPTION
+        "This notification is generated when the reader's
+         free memory state changes and the following transitions
+         are possible
+         
+         normal -> shortage
+          
+         A memory shortage is detected when the epcgRdrDevFreeMemory
+         object changes to a value that is equal to or below the 
+         value specified by the epcgRdrDevFreeMemoryOnsetThreshold
+         object the object.
+         
+         shortage -> normal
+         
+         A memory shortage ends when the epcgRdrDevFreeMemory
+         object changes to a value that is equal to or greater than
+         the value specified by the 
+         epcgRdrDevFreeMemoryAbateThreshold object.
+         
+         The epcgRdrDevFreeMemoryOnsetThreshold and 
+         epcgRdrDevFreeMemoryAbateThreshold threshold will be 
+         different for each platform and should be related to the 
+         amount of available memory.   For example,  a device may 
+         decided to set the onset threshold to 20 percent of 
+         total memory and the abate to 35 percent of total memory.
+         
+         The value of the epcgRdrDevFreeMemoryOnsetThreshold
+         object must be less than the value specified for the 
+         epcgRdrDevFreeMemoryOnsetAbate object.  In addition,
+         the difference between these object should be sufficient
+         to prevent excessive number of notification being 
+         generated when small amounts of memory are used then
+         freed.  The epcgRdrDevMemStateSuppressInterval object can
+         be configured  to suppress the excessive generation of
+         notifications."
+    ::= { epcgReaderNotifs 2 }
+
+epcgReadPointOperationState NOTIFICATION-TYPE
+    OBJECTS { sysName, 
+              epcgRdrDevTimeUtc,
+              epcgReadPointOperNotifyStateLevel,
+              epcgReadPointName,
+              epcgReadPointOperStatusPrior,
+              epcgReadPointOperStatus
+            }
+    STATUS current
+    DESCRIPTION
+        "This notification is generated when a read point
+         undergoes a change in operational status.  In some 
+         environment certain states may be transitory and
+         do not need to generate notifications.  In addition,
+         a device may cycle between two states.  Therefore, 
+         notifications will be generated whenever the state 
+         transitions into a state enabled for notifications
+         as defined by the epcgRdrDevOperNotifToState
+         object.  Also, notifications will be generate whenever
+         the state transitions out of a state define by the
+         epcgRdrDevOperNotifFromState object.  The 
+         epcgReadPointOperStateSuppressInterval object can be 
+         configured to suppress the excessive generation of
+         notifications."
+    ::= { epcgReaderNotifs 3 }
+
+epcgReaderAntennaReadFailure NOTIFICATION-TYPE
+    OBJECTS { sysName, 
+              epcgRdrDevTimeUtc,
+              epcgAntRdPntReadFailureNotifLevel,
+              epcgReadPointName,
+              epcgAntRdPntMemoryReadFailures,
+              epcgAntRdPntNoiseLevel
+            }
+    STATUS current
+    DESCRIPTION
+        "This notification is generated when a memory read operation
+         across an antenna fails.  To prevent an excessive number
+         of notifications the epcgAntRdPntSuppressInterval can be
+         configured to suppress generation."
+    ::= { epcgReaderNotifs 4 }
+
+epcgReaderAntennaWriteFailure NOTIFICATION-TYPE
+    OBJECTS { sysName, 
+              epcgRdrDevTimeUtc,
+              epcgAntRdPntWriteFailuresNotifLevel,
+              epcgReadPointName,
+              epcgAntRdPntWriteFailures,
+              epcgAntRdPntNoiseLevel
+            }
+    STATUS current
+    DESCRIPTION
+        "This notification is generated when a write operation
+         across an antenna fails.  To prevent an excessive number
+         of notifications the epcgAntRdPntSuppressInterval can be
+         configured to suppress generation"
+    ::= { epcgReaderNotifs 5 }
+
+epcgReaderAntennaKillFailure NOTIFICATION-TYPE
+    OBJECTS { sysName, 
+              epcgRdrDevTimeUtc,
+              epcgAntRdPntKillFailuresNotifLevel,
+              epcgReadPointName,
+              epcgAntRdPntKillFailures,
+              epcgAntRdPntNoiseLevel
+            }
+    STATUS current
+    DESCRIPTION
+        "This notification is generated when a kill operation
+         across an antenna fails. To prevent an excessive number
+         of notifications the epcgAntRdPntSuppressInterval can be
+         configured to suppress generation"
+    ::= { epcgReaderNotifs 6 }
+
+epcgReaderAntennaEraseFailure NOTIFICATION-TYPE
+    OBJECTS { sysName, 
+              epcgRdrDevTimeUtc,
+              epcgAntRdPntEraseFailuresNotifLevel,
+              epcgReadPointName,
+              epcgAntRdPntEraseFailures,
+              epcgAntRdPntNoiseLevel
+            }
+    STATUS current
+    DESCRIPTION
+        "This notification is generated when an erase operation
+         across an antenna fails. To prevent an excessive number
+         of notifications the epcgAntRdPntSuppressInterval can be
+         configured to suppress generation"
+    ::= { epcgReaderNotifs 7 }
+
+epcgReaderAntennaLockFailure NOTIFICATION-TYPE
+    OBJECTS { sysName, 
+              epcgRdrDevTimeUtc,
+              epcgAntRdPntLockFailuresNotifLevel,
+              epcgReadPointName,
+              epcgAntRdPntLockFailures,
+              epcgAntRdPntNoiseLevel
+            }
+    STATUS current
+    DESCRIPTION
+        "This notification is generated when a lock operation
+         across an antenna fails. To prevent an excessive number
+         of notifications the epcgAntRdPntSuppressInterval can be
+         configured to suppress generation"
+    ::= { epcgReaderNotifs 8 }
+
+epcgReaderIoPortOperationState NOTIFICATION-TYPE
+    OBJECTS { sysName, 
+              epcgRdrDevTimeUtc,
+              epcgIoPortOperStatusNotifLevel,
+              epcgIoPortName,
+              epcgIoPortOperStatusPrior,
+              epcgIoPortOperStatus
+            }
+    STATUS current
+    DESCRIPTION
+        "This notification is generated when an IO port
+         undergoes a change in operation status that falls
+         within the set of notification-triggering state transitions
+         specified by the epcgIoPortOperStatusNotifFromState and
+         epcgIoPortOperStatusNotifToState object values.  The 
+         epcgIoPortOperStateSuppressInterval object can be 
+         configured to suppress the excessive generation of
+         notifications."
+    ::= { epcgReaderNotifs 9 }
+
+epcgReaderSourceOperationState NOTIFICATION-TYPE
+    OBJECTS { sysName, 
+              epcgRdrDevTimeUtc,
+              epcgSrcOperStatusNotifyLevel,
+              epcgSrcName,
+              epcgSrcOperStatusPrior,
+              epcgSrcOperStatus
+            }
+    STATUS current
+    DESCRIPTION
+        "This notification is generated when a source
+         undergoes a change in operational status that
+         falls  within the set of notification-triggering state
+         transitions specified by the epcgSrcOperStatusNotifFromState 
+         and epcgSrcOperStatusNotifToState object values.  The 
+         notifications may be generated by a from state, a to state, 
+         or some combination of from and to states.  The 
+         epcgRdrSourceOperStateSuppressInterval object can be 
+         configured  to suppress the excessive generation of
+         notifications."
+    ::= { epcgReaderNotifs 10 }
+
+epcgReaderNotificationChanOperState NOTIFICATION-TYPE
+    OBJECTS { sysName, 
+              epcgRdrDevTimeUtc,
+              epcgNotifChanOperNotifLevel,
+              epcgNotifChanName,
+              epcgNotifChanOperStatusPrior,
+              epcgNotifChanOperStatus
+            }
+    STATUS current
+    DESCRIPTION
+        "This notification is generated when a notification
+         channel undergoes a change in operational status that
+         falls within the set of notification-triggering state 
+         transitions specified by the
+         epcgNotifChanOperNotifFromState and 
+         epcgNotifChanOperNotifToState object values.  The 
+         notifications may be generated by a from state, a to state, or some 
+         combination of from and to states.  To prevent an excessive number 
+           of notifications the epcgRdrChanOperStateSuppressInterval can be
+           configured to suppress generation"
+    ::= { epcgReaderNotifs 11 }
+
+
+--*******************************************************************
+--** Reader Device Information Objects                             **
+--*******************************************************************
+epcgReaderDeviceInformation 
+     OBJECT IDENTIFIER ::= { epcgReaderDevice 1 }
+     
+-- Many of the objects contained within the ReaderDevice class of the
+-- EPCglobal Reader Management abstract model are represented, within
+-- the SNMP binding, by objects within in the System group (SNMPv2-MIB,
+-- see RFC 3418).  In particular,
+--
+--     o System group's sysName object represents ReaderDevice.Name 
+--     o System group's sysDescr object represents ReaderDevice.Manufacturer
+--       and ReaderDevice.Model  
+--     o System group's sysLocation object represents 
+--       ReaderDevice.LocationDescription
+--     o System group's sysContact object represents ReaderDevice.Contact
+--     o System group's sysUpTime object represents ReaderDevice.TimeTicks  
+--
+epcgRdrDevDescription    OBJECT-TYPE
+    SYNTAX               SnmpAdminString
+    MAX-ACCESS           read-only
+    STATUS               current
+    DESCRIPTION
+        "The operator's textual description of the reader."
+    ::= { epcgReaderDeviceInformation 1 }
+
+epcgRdrDevRole           OBJECT-TYPE
+    SYNTAX               SnmpAdminString
+    MAX-ACCESS           read-only
+    STATUS               current
+    DESCRIPTION
+        "Reader functional role; e.g., Pallet Verification Portal."
+    ::= { epcgReaderDeviceInformation 2 }
+
+epcgRdrDevEpc            OBJECT-TYPE
+    SYNTAX               SnmpAdminString
+    MAX-ACCESS           read-only
+    STATUS               current
+    DESCRIPTION
+        "Manufacturer assigned EPC URI."
+    ::= { epcgReaderDeviceInformation 3 }
+
+epcgRdrDevSerialNumber   OBJECT-TYPE
+    SYNTAX               SnmpAdminString
+    MAX-ACCESS           read-only
+    STATUS               current
+    DESCRIPTION
+        "Manufacturer assigned serial number."
+    ::= { epcgReaderDeviceInformation 4 }
+
+epcgRdrDevTimeUtc        OBJECT-TYPE
+    SYNTAX               DateAndTime
+    MAX-ACCESS           read-only
+    STATUS               current
+    DESCRIPTION
+        "Reader device wall clock time in UTC."
+    ::= { epcgReaderDeviceInformation 5 }
+    
+epcgRdrDevCurrentSource OBJECT-TYPE
+    SYNTAX              RowPointer
+    MAX-ACCESS          read-only
+    STATUS              current
+    DESCRIPTION
+       "A pointer to the row in the source table(epcgSourceTable) 
+        that corresponds to the current source"
+    ::= { epcgReaderDeviceInformation 6 }            
+
+epcgRdrDevReboot        OBJECT-TYPE
+    SYNTAX              TruthValue
+    MAX-ACCESS          read-write
+    STATUS              current
+    DESCRIPTION
+       "Setting this object to true(1) causes the device to reboot.
+        Reading this object always returns false(2).  Care should be taken
+	that the reboot is done after the response is sent, to prevent the
+	management station from resending the request and rebooting the device
+	again."
+    ::= { epcgReaderDeviceInformation 7 }            
+
+epcgRdrDevResetStatistics OBJECT-TYPE
+    SYNTAX                TruthValue
+    MAX-ACCESS            read-write
+    STATUS                current
+    DESCRIPTION
+        " Object used to clear all measurements as follows.
+          'true' - Causes the device to set all objects defined 
+                   with a syntax of EpcgCurrentCountSinceReset
+                   to zero.
+                   
+          'false' - read value.          
+          
+         Reading this object always returns 'false'."
+    ::= { epcgReaderDeviceInformation 8 }            
+    
+epcgRdrDevResetTimestamp    OBJECT-TYPE
+    SYNTAX                  DateAndTime
+    MAX-ACCESS              read-only
+    STATUS                  current
+    DESCRIPTION
+       "This object is set to the current date and time when the
+        epcgRdrDevResetStatistics object is set to 'true'.
+        Initially it will be set to null value."
+    ::= { epcgReaderDeviceInformation 9 }            
+
+epcgRdrDevNormalizePowerLevel OBJECT-TYPE
+    SYNTAX                    TruthValue
+    MAX-ACCESS                read-only
+    STATUS                    current
+    DESCRIPTION
+       " This object is used to indicate how an implementation
+         presents power levels as follows.
+         
+         'true' - All power levels will be converted be normalize
+                  to a range from 0-255. 
+                  
+         'false' - All power levels are presented in raw format
+                   specific to a particular vendor.          
+                   
+         This controls the presentation of the following objects.
+         -- epcgAntRdPntPowerLevel
+        "
+    ::= { epcgReaderDeviceInformation 10 }            
+    
+epcgRdrDevNormalizeNoiseLevel OBJECT-TYPE
+    SYNTAX                    TruthValue
+    MAX-ACCESS                read-only
+    STATUS                    current
+    DESCRIPTION
+        "This object is used to indicate how an implementation
+         presents noise levels as follows.
+          
+          'true' - All noise levels will be converted be normalize
+                   to a range from 0-255. 
+                   
+          'false' - All noise levels are presented in raw format
+                    specific to a particular vendor.          
+         
+          This controls the presentation of the following objects.
+          -- epcgAntRdPntNoiseLevel 
+        "  
+    ::= { epcgReaderDeviceInformation 11 }            
+    
+
+--*******************************************************************
+--** Optional system wide counters
+--*******************************************************************
+epcgGlobalCountersTable OBJECT-TYPE
+    SYNTAX            SEQUENCE OF EpcgGlobalCountersEntry
+    MAX-ACCESS        not-accessible
+    STATUS            current
+    DESCRIPTION
+        "The following table aggregates the various counters
+         that are maintained per entity like read point, 
+         antenna read points, and source."
+    ::= { epcgReaderDevice 2 }
+        
+epcgGlobalCountersEntry OBJECT-TYPE
+    SYNTAX            EpcgGlobalCountersEntry
+    MAX-ACCESS        not-accessible
+    STATUS            current
+    DESCRIPTION
+        "Each entry contains information need to communicate with
+         each type of server. "
+    INDEX { epcgGlobalCountersIndex }
+    ::= { epcgGlobalCountersTable 1 }
+
+EpcgGlobalCountersEntry ::= SEQUENCE {
+        epcgGlobalCountersIndex  INTEGER,
+        epcgGlobalCountersData   EpcgCurrentCountSinceReset
+        }
+        
+epcgGlobalCountersIndex OBJECT-TYPE
+    SYNTAX INTEGER   { antennaTagsIdentified        (1),
+                       antennaTagsNotIdentified     (2),
+                       antennaMemoryReadOperations  (18),
+                       antennaMemoryReadFailures    (3),
+                       antennaWriteOperations       (4),
+                       antennaWriteFailures         (5),
+                       antennaKillOperations        (6),
+                       antennaKillFailures          (7),
+                       antennaEraseOperations       (8),
+                       antennaEraseFailures         (19),
+                       antennaLockOperations        (9),
+                       antennaLockFailures          (10),
+                       sourceUnknownToGlimpsed      (11),
+                       sourceGlimpsedToUnknown      (12),
+                       sourceGlimpsedToObserved     (13),
+                       sourceObservedToLost         (14),
+                       sourceLostToGlimpsed         (15),
+                       sourceLostToUnknown          (16),
+                       triggerMatches               (17)
+            }                                        
+    MAX-ACCESS              not-accessible
+    STATUS                  current
+    DESCRIPTION 
+       "Index to access global counters as follows.  The units of
+        each counter will be the same as object indicated by 
+        index.  For example the antennaIdentifier value references
+        the epcgAntRdPntTagsIdentified and it uses 'tags' as units.
+       
+         antennaTagsIdentified - Aggregate counter for all instances 
+                of the epcgAntRdPntTagsIdentified object.
+                
+         antennaTagsNotIdentified - Aggregate counter for all 
+                instances of the epcgAntRdPntTagsNotIdentified object. 
+                
+         antennaMemoryReadOperations - Aggregate counter for all instances 
+                of the epcgAntRdPntMemoryReadOperations object.           
+
+         antennaMemoryReadFailures - Aggregate counter for all instances 
+                of the epcgAntRdPntMemoryReadFailures object.           
+                
+         antennaWriteOperations - Aggregate counter for all instances 
+                of the epcgAntRdPntWriteOperations object.           
+                
+         antennaWriteFailures - Aggregate counter for all instances 
+                of the epcgAntRdPntWriteFailures object.           
+                
+         antennaKillOperations - Aggregate counter for all instances 
+                of the epcgAntRdPntKillOperations object.           
+                
+         antennaKillFailures - Aggregate counter for all instances 
+                of the epcgAntRdPntKillFailures object.           
+                
+         antennaEraseOperations - Aggregate counter for all instances 
+                of the epcgAntRdPntEraseOperations object.           
+                
+         antennaEraseFailures - Aggregate counter for all instances 
+                of the epcgAntRdPntEraseFailures object.           
+
+         antennaLockOperations - Aggregate counter for all instances 
+                of the epcgAntRdPntLockOperations object.           
+              
+         antennaLockFailures - Aggregate counter for all instances 
+                of the epcgAntRdPntLockFailures object.           
+                
+         sourceUnknownToGlimpsed - Aggregate counter for all instances 
+                of the epcgSrcUnknownToGlimpsedTrans object.           
+                
+         sourceGlimpsedToUnknown - Aggregate counter for all instances 
+                of the epcgSrcGlimpsedToUnknownTrans object.           
+                
+         sourceGlimpsedToObserved - Aggregate counter for all instances 
+                of theepcgSrcGlimpsedToObservedTrans  object.           
+                
+         sourceObservedToLost - Aggregate counter for all instances 
+                of the epcgSrcObservedToLostTrans object.           
+                
+         sourceLostToGlimpsed - Aggregate counter for all instances 
+                of the epcgSrcLostToGlimpsedTrans object.           
+                
+         sourceLostToUnknown - Aggregate counter for all instances 
+                of the epcgSrcLostToUnknownTrans object.           
+                
+         triggerMatches - Aggregate counter for all instances 
+                of the epcgTriggerMatches object.           
+                
+         source - Aggregate counter for all instances 
+                of the  object.           
+       " 
+    ::= { epcgGlobalCountersEntry 1 }            
+    
+epcgGlobalCountersData  OBJECT-TYPE
+    SYNTAX      EpcgCurrentCountSinceReset
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "The object contain aggregate count for all instances
+         of object as defined by epcgGlobalCountersIndex."
+    ::= { epcgGlobalCountersEntry 2 }
+
+--*******************************************************************
+--** Reader Device - Operation Objects
+--*******************************************************************
+epcgReaderDeviceOperation 
+     OBJECT IDENTIFIER ::= { epcgReaderDevice 3 }
+     
+epcgRdrDevOperStatus     OBJECT-TYPE
+    SYNTAX               EpcgOperationalStatus
+    MAX-ACCESS           read-only
+    STATUS               current
+    DESCRIPTION
+       "Current status of the reader device."
+    ::= { epcgReaderDeviceOperation 1}
+
+epcgRdrDevOperStatusPrior OBJECT-TYPE
+    SYNTAX                EpcgOperationalStatus
+    MAX-ACCESS            accessible-for-notify
+    STATUS                current
+    DESCRIPTION
+       "Status of reader prior to status change that triggered
+        the epcgReaderDeviceOperationState notification."
+    ::= { epcgReaderDeviceOperation 2 }
+
+epcgRdrDevOperStateEnable OBJECT-TYPE
+    SYNTAX                TruthValue
+    MAX-ACCESS            read-write
+    STATUS                current
+    DESCRIPTION
+       "This object controls the generation of the 
+        epcgReaderDeviceOperationState notification
+        as follows.
+        
+        'true'  Indicates that the notification of 
+                operation state changes has been 
+                enabled. 
+               
+        'false' Indicates that the notification of 
+                operation state changes has been 
+                disabled." 
+     DEFVAL { false }
+    ::= { epcgReaderDeviceOperation 3 }
+
+epcgRdrDevOperNotifFromState OBJECT-TYPE
+    SYNTAX                EpcgOperationalEnable
+    MAX-ACCESS            read-write
+    STATUS                current
+    DESCRIPTION
+       "The source state used to control the generation of 
+        the epcgReaderDeviceOperationState notification."
+    DEFVAL { { unknown, other, up, down} }
+    ::= { epcgReaderDeviceOperation 4 }
+        
+epcgRdrDevOperNotifToState OBJECT-TYPE
+    SYNTAX          EpcgOperationalEnable
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+       "The destination state used to control the generation of 
+        the epcgReaderDeviceOperationState notification."
+    DEFVAL { { unknown, other, up, down} }
+    ::= { epcgReaderDeviceOperation 5 }
+
+epcgRdrDevOperNotifStateLevel  OBJECT-TYPE
+    SYNTAX              EpcgNotifLevel
+    MAX-ACCESS          read-write
+    STATUS              current
+    DESCRIPTION
+        "The severity level assigned to the 
+         epcgReaderDeviceOperationStatenotification"
+    DEFVAL { error }
+        ::= { epcgReaderDeviceOperation 6 }
+
+epcgRdrDevOperStateSuppressInterval OBJECT-TYPE
+     SYNTAX      Unsigned32 (0 | 1..3600 )
+     UNITS       "seconds"
+     MAX-ACCESS  read-write
+     STATUS      current
+     DESCRIPTION
+       "The length of the interval used to suppress generation 
+        of epcgReaderDeviceOperationState change notifications.
+        
+         Notification will not be suppressed when zero value is 
+        specified."
+    DEFVAL { 0 }
+    ::= { epcgReaderDeviceOperation 7 }
+                                  
+epcgRdrDevOperStateSuppressions OBJECT-TYPE
+     SYNTAX             Counter32
+     UNITS              "notifications"
+     MAX-ACCESS         read-only
+     STATUS             current
+     DESCRIPTION
+        "The number of device operation state change 
+         notifications that have been suppressed."
+     ::= { epcgReaderDeviceOperation 8 }
+
+--*******************************************************************
+--** Reader Device Memory Objects                                  **
+--*******************************************************************
+epcgReaderDeviceMemory 
+     OBJECT IDENTIFIER ::= { epcgReaderDevice 4 }
+     
+epcgRdrDevFreeMemory     OBJECT-TYPE
+    SYNTAX               Gauge32(0..4294967295)
+    UNITS                "bytes"
+    MAX-ACCESS           read-only
+    STATUS               current
+    DESCRIPTION
+        "Reader device free memory, in bytes"
+    ::= { epcgReaderDeviceMemory 1 }
+
+epcgRdrDevFreeMemoryNotifEnable OBJECT-TYPE
+    SYNTAX                  TruthValue
+    MAX-ACCESS              read-write
+    STATUS                  current
+    DESCRIPTION
+       "This object controls the generation of the 
+        epcgRdrDevMemoryState notification as follows.
+        
+        'true'  Indicates that the notification of 
+                epcgRdrDevMemoryState changes has been enabled. 
+               
+        'false' Indicates that the notification of 
+                epcgRdrDevMemoryState changes has been disabled." 
+    ::= { epcgReaderDeviceMemory 2 }
+
+epcgRdrDevFreeMemoryNotifLevel  OBJECT-TYPE
+    SYNTAX                      EpcgNotifLevel
+    MAX-ACCESS                  read-write
+    STATUS                      current
+    DESCRIPTION
+       "The severity level assigned to the epcgRdrDevMemoryState
+        notification"
+    DEFVAL { critical }
+    ::= { epcgReaderDeviceMemory 3 }
+
+epcgRdrDevFreeMemoryOnsetThreshold  OBJECT-TYPE
+    SYNTAX                          EpcgThreshold
+    MAX-ACCESS                      read-write
+    STATUS                          current
+    DESCRIPTION
+        "The threshold value used to detect low memory situations."
+    ::= { epcgReaderDeviceMemory 4 }
+
+epcgRdrDevFreeMemoryAbateThreshold  OBJECT-TYPE
+    SYNTAX                          EpcgThreshold
+    MAX-ACCESS                      read-write
+    STATUS                          current
+    DESCRIPTION
+        "The threshold value used to detect end of low memory
+         situations."
+    ::= { epcgReaderDeviceMemory 5 }
+
+epcgRdrDevFreeMemoryStatus  OBJECT-TYPE
+    SYNTAX                  INTEGER { shortage (1),
+                                      normal   (2)
+                            }
+    MAX-ACCESS              read-only
+    STATUS                  current
+    DESCRIPTION
+        "The current memory state."
+    ::= { epcgReaderDeviceMemory 6 }
+
+epcgRdrDevMemStateSuppressInterval OBJECT-TYPE
+     SYNTAX      Unsigned32 (0 | 1..3600 )
+     UNITS       "seconds"
+     MAX-ACCESS  read-write
+     STATUS      current
+     DESCRIPTION
+       "The length of the interval used to suppress generation 
+        of epcgRdrDevMemoryState change notifications.
+        
+        Notification will not be suppressed when zero value is 
+        specified."
+    DEFVAL { 0 }
+    ::= { epcgReaderDeviceMemory 7 }
+
+epcgRdrDevMemStateSuppressions OBJECT-TYPE
+     SYNTAX             Counter32
+     UNITS              "notifications"
+     MAX-ACCESS         read-only
+     STATUS             current
+     DESCRIPTION
+        "The number of device memory state change 
+         notifications that have been suppressed."
+     ::= { epcgReaderDeviceMemory 8 }
+
+
+--*******************************************************************
+--** Reader Device - Server Table
+--*******************************************************************
+epcgReaderServerTable OBJECT-TYPE
+    SYNTAX            SEQUENCE OF EpcgReaderServerEntry
+    MAX-ACCESS        not-accessible
+    STATUS            current
+    DESCRIPTION
+        "The following table provide information about the various
+         servers used by reader device.  Entries are added and removed
+         from this table via epcgReaderServerRowStatus in accordance
+         with the RowStatus convention."
+    ::= { epcgReaderDevice 5 }
+        
+epcgReaderServerEntry OBJECT-TYPE
+    SYNTAX            EpcgReaderServerEntry
+    MAX-ACCESS        not-accessible
+    STATUS            current
+    DESCRIPTION
+        "Each entry contains information need to communicate with
+         each type of server. "
+    INDEX { epcgReaderServerType,
+            epcgReaderServerNumber
+     }
+    ::= { epcgReaderServerTable 1 }
+
+EpcgReaderServerEntry ::= SEQUENCE {
+    epcgReaderServerType              INTEGER,
+    epcgReaderServerNumber            Unsigned32,
+    epcgReaderServerAddressType       InetAddressType,
+    epcgReaderServerAddress           InetAddress,
+    epcgReaderServerRowStatus         RowStatus
+}
+        
+epcgReaderServerType         OBJECT-TYPE
+    SYNTAX                   INTEGER { dhcp (1),
+                                       dns  (2),       
+                                       time (3)
+                             }
+    MAX-ACCESS               not-accessible
+    STATUS                   current
+    DESCRIPTION 
+       "The type of server as follows.
+        
+          dhcp  - DHCP server.
+          dns   - Domain Name System.
+          time  - Time server used to synchronization Reader's 
+                  real-time clock.
+       "                 
+    ::= { epcgReaderServerEntry 1 } 
+               
+epcgReaderServerNumber       OBJECT-TYPE
+    SYNTAX                   Unsigned32(1..10)
+    MAX-ACCESS               not-accessible
+    STATUS                   current
+    DESCRIPTION
+       "The server number.  This index is assigned arbitrarily by
+        the SNMP engine and is not required to be saved over 
+        restarts."
+    ::= { epcgReaderServerEntry 2 } 
+       
+epcgReaderServerAddressType  OBJECT-TYPE
+    SYNTAX                   InetAddressType
+    MAX-ACCESS               read-create
+    STATUS                   current
+    DESCRIPTION
+       "The type of Internet address to be used to 
+        communicate with server to collect."
+    ::= { epcgReaderServerEntry 3 }            
+    
+epcgReaderServerAddress      OBJECT-TYPE
+    SYNTAX                   InetAddress
+    MAX-ACCESS               read-create
+    STATUS                    current
+    DESCRIPTION
+       "The address of the server and the format of the address
+        is specified by the epcgReaderServerAddressType object." 
+    ::= { epcgReaderServerEntry 4 }            
+    
+epcgReaderServerRowStatus OBJECT-TYPE
+    SYNTAX          RowStatus
+    MAX-ACCESS      read-create
+    STATUS          current
+    DESCRIPTION
+       "The status of this row."
+    ::= { epcgReaderServerEntry 5 }            
+
+        
+--*******************************************************************
+--** Read Points                                                   **
+--*******************************************************************
+epcgReadPointTable OBJECT-TYPE
+    SYNTAX         SEQUENCE OF EpcgReadPointEntry
+    MAX-ACCESS     not-accessible
+    STATUS         current
+    DESCRIPTION
+        "This table contains a row entry for each of the Reader's 
+         ReadPoints.  A ReadPoint can be any physical entity that is
+         capable of acquiring (or distributing, in the case of tag 
+         programming) item data.  A single RF tag reader antenna is 
+         one example of a ReadPoint.  ReadPoints are not limited to 
+         antennas; for example, a bar code scanning device is another 
+         example of a ReadPoint.  Hence, ReadPoint is the base class
+         for all physical elements over which EPC data is read or 
+         written. 
+
+         The AntennaReadPoint class extends this class and is
+         represented by the AntennaReadPointTable.  (A later revision
+         of this MIB may introduce a BarCodeReadPointTable that
+         augments this table.)
+
+         Typically the number of rows in this table will be equal to
+         the number of Antenna ports on a reader"
+    ::= { epcgReadPoints 1 }
+
+    
+epcgReadPointEntry OBJECT-TYPE
+    SYNTAX      EpcgReadPointEntry
+    MAX-ACCESS  not-accessible
+    STATUS      current
+    DESCRIPTION
+        "The properties of a read point.  SNMP operations can 
+         neither create nor delete rows of this table"
+    INDEX { epcgReadPointIndex }
+    ::= { epcgReadPointTable 1 }
+
+EpcgReadPointEntry ::= SEQUENCE {
+        epcgReadPointIndex                     Unsigned32,
+        epcgReadPointName                      SnmpAdminString,
+        epcgReadPointDescription               SnmpAdminString,
+        epcgReadPointAdminStatus               EpcgAdministrativeStatus,
+        epcgReadPointOperStatus                EpcgOperationalStatus,
+        epcgReadPointOperStateNotifyEnable     TruthValue,
+        epcgReadPointOperNotifyFromState       EpcgOperationalEnable,
+        epcgReadPointOperNotifyToState         EpcgOperationalEnable,
+        epcgReadPointOperNotifyStateLevel      EpcgNotifLevel,
+	epcgReadPointOperStatusPrior           EpcgOperationalStatus,
+	epcgReadPointOperStateSuppressInterval Unsigned32,
+	epcgReadPointOperStateSuppressions     Counter32
+          }
+
+epcgReadPointIndex OBJECT-TYPE
+    SYNTAX      Unsigned32(1..2147483647) 
+    MAX-ACCESS  not-accessible
+    STATUS      current 
+    DESCRIPTION 
+       "Index used for uniquely identifying a read point within
+        the scope of a given RFID Reader.  This index is assigned
+        arbitrarily by the SNMP engine and is not required to be
+        saved over restarts." 
+    ::= { epcgReadPointEntry 1 }
+
+epcgReadPointName        OBJECT-TYPE
+    SYNTAX               SnmpAdminString
+    MAX-ACCESS           read-only
+    STATUS               current
+    DESCRIPTION
+       "Unique name assigned to read point by device."
+    ::= { epcgReadPointEntry 2 }
+
+epcgReadPointDescription OBJECT-TYPE
+    SYNTAX               SnmpAdminString
+    MAX-ACCESS           read-only
+    STATUS               current
+    DESCRIPTION
+       "A textual description of the read point."
+    ::= { epcgReadPointEntry 3 }
+
+epcgReadPointAdminStatus OBJECT-TYPE
+    SYNTAX               EpcgAdministrativeStatus
+    MAX-ACCESS           read-write
+    STATUS               current
+    DESCRIPTION
+       "The adminstratively specified status of the read point."
+    ::= { epcgReadPointEntry 4 }
+
+epcgReadPointOperStatus  OBJECT-TYPE
+    SYNTAX               EpcgOperationalStatus
+    MAX-ACCESS           read-only
+    STATUS               current
+    DESCRIPTION
+       "The read point's current operational status"
+    ::= { epcgReadPointEntry 5 }
+        
+epcgReadPointOperStateNotifyEnable OBJECT-TYPE
+    SYNTAX               TruthValue
+    MAX-ACCESS           read-write
+    STATUS               current
+    DESCRIPTION
+       "This object controls the generation of the 
+        epcgReadPointOperationState notification
+        for this read point as follows.
+        
+        'true'  Indicates that the notification of read point
+                operation state changes has been enabled. 
+               
+        'false' Indicates that the notification of read point
+                operation state changes has been disable."
+                
+    ::= { epcgReadPointEntry 6 }
+
+epcgReadPointOperNotifyFromState OBJECT-TYPE
+    SYNTAX               EpcgOperationalEnable
+    MAX-ACCESS           read-write
+    STATUS               current
+    DESCRIPTION
+       "The source state used to control the generation of 
+        the epcgReadPointOperationState notification."
+    DEFVAL { { unknown, other, up, down} }
+    ::= { epcgReadPointEntry 7 }
+
+epcgReadPointOperNotifyToState OBJECT-TYPE
+    SYNTAX               EpcgOperationalEnable
+    MAX-ACCESS           read-write
+    STATUS               current
+    DESCRIPTION
+       "The destination state used to control the generation of 
+        the epcgReadPointOperationState notification."
+    DEFVAL { { unknown, other, up, down} }
+    ::= { epcgReadPointEntry 8 }
+
+epcgReadPointOperNotifyStateLevel  OBJECT-TYPE
+    SYNTAX               EpcgNotifLevel
+    MAX-ACCESS           read-write
+    STATUS               current
+    DESCRIPTION
+        "The severity level assigned to the 
+         epcgReadPointOperationState notification."
+    DEFVAL { error }
+    ::= { epcgReadPointEntry 9 }
+
+epcgReadPointOperStatusPrior OBJECT-TYPE
+    SYNTAX                   EpcgOperationalStatus
+    MAX-ACCESS               accessible-for-notify
+    STATUS                   current
+    DESCRIPTION
+         "The past status of read-point prior to the new status change
+          that triggered the epcgReadPointOperationState 
+          notifictation."
+    ::= { epcgReadPointEntry 10 }
+
+epcgReadPointOperStateSuppressInterval OBJECT-TYPE
+     SYNTAX      Unsigned32 (0 | 1..3600 )
+     UNITS       "seconds"
+     MAX-ACCESS  read-write
+     STATUS      current
+     DESCRIPTION
+       "The length of the interval used to suppress generation 
+        of epcgReadPointOperationState change notifications.
+        
+        Notification will not be suppressed when zero value is 
+        specified."
+    DEFVAL { 0 }
+    ::= { epcgReadPointEntry 11 }
+
+epcgReadPointOperStateSuppressions OBJECT-TYPE
+     SYNTAX             Counter32
+     UNITS              "notifications"
+     MAX-ACCESS         read-only
+     STATUS             current
+     DESCRIPTION
+        "The number of read point operational state change
+         notifications that have been suppressed."
+     ::= { epcgReadPointEntry 12 }
+
+
+--*******************************************************************
+--** Antenna Read Points                                           **
+--*******************************************************************
+epcgAntReadPointTable OBJECT-TYPE
+    SYNTAX      SEQUENCE OF EpcgAntReadPointEntry
+    MAX-ACCESS  not-accessible
+    STATUS      current
+    DESCRIPTION
+        "This table extends the epcgReadPointTable.  It contains
+         one row for each physical antenna, or antenna port, on 
+         a Reader."
+    ::= { epcgAntennaReadPoints 1 }
+
+epcgAntReadPointEntry OBJECT-TYPE
+    SYNTAX      EpcgAntReadPointEntry
+    MAX-ACCESS  not-accessible
+    STATUS      current
+    DESCRIPTION
+        "The properties of an antenna read point.  SNMP
+         operations can neither create nor delete 
+         rows of this table"
+
+    INDEX { epcgReadPointIndex }
+    ::= { epcgAntReadPointTable 1 }
+
+EpcgAntReadPointEntry ::= SEQUENCE {
+    epcgAntRdPntTagsIdentified           EpcgCurrentCountSinceReset,
+    epcgAntRdPntTagsNotIdentified        EpcgCurrentCountSinceReset,
+    epcgAntRdPntMemoryReadOperations     EpcgCurrentCountSinceReset,
+    epcgAntRdPntMemoryReadFailures       EpcgCurrentCountSinceReset,
+    epcgAntRdPntReadFailureNotifEnable   TruthValue,
+    epcgAntRdPntReadFailureNotifLevel    EpcgNotifLevel,
+    epcgAntRdPntReadFailureSuppressInterval Unsigned32,
+    epcgAntRdPntReadFailureSuppressions  Counter32,
+    epcgAntRdPntWriteOperations          EpcgCurrentCountSinceReset,
+    epcgAntRdPntWriteFailures            EpcgCurrentCountSinceReset,
+    epcgAntRdPntWriteFailuresNotifEnable TruthValue,
+    epcgAntRdPntWriteFailuresNotifLevel  EpcgNotifLevel,
+    epcgAntRdPntWriteFailureSuppressInterval Unsigned32,
+    epcgAntRdPntWriteFailureSuppressions  Counter32,
+    epcgAntRdPntKillOperations           EpcgCurrentCountSinceReset,
+    epcgAntRdPntKillFailures             EpcgCurrentCountSinceReset,
+    epcgAntRdPntKillFailuresNotifEnable  TruthValue,
+    epcgAntRdPntKillFailuresNotifLevel   EpcgNotifLevel,
+    epcgAntRdPntKillFailureSuppressInterval Unsigned32,
+    epcgAntRdPntKillFailureSuppressions  Counter32,
+    epcgAntRdPntEraseOperations          EpcgCurrentCountSinceReset,
+    epcgAntRdPntEraseFailures      EpcgCurrentCountSinceReset,
+    epcgAntRdPntEraseFailuresNotifEnable     TruthValue,
+    epcgAntRdPntEraseFailuresNotifLevel     EpcgNotifLevel,
+    epcgAntRdPntEraseFailureSuppressInterval Unsigned32,
+    epcgAntRdPntEraseFailureSuppressions  Counter32,
+    epcgAntRdPntLockOperations           EpcgCurrentCountSinceReset,
+    epcgAntRdPntLockFailures             EpcgCurrentCountSinceReset,
+    epcgAntRdPntLockFailuresNotifEnable TruthValue,
+    epcgAntRdPntLockFailuresNotifLevel  EpcgNotifLevel,
+    epcgAntRdPntLockFailureSuppressInterval Unsigned32,
+    epcgAntRdPntLockFailureSuppressions  Counter32,
+    epcgAntRdPntPowerLevel               Integer32,
+    epcgAntRdPntNoiseLevel               Integer32, 
+    epcgAntRdPntTimeEnergized            EpcgCurrentCountSinceReset
+}
+
+epcgAntRdPntTagsIdentified OBJECT-TYPE  
+    SYNTAX      EpcgCurrentCountSinceReset
+    UNITS       "tags"
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "Count of tags successfully identified by this antenna read point."
+    ::= { epcgAntReadPointEntry 1 }
+
+epcgAntRdPntTagsNotIdentified OBJECT-TYPE
+    SYNTAX      EpcgCurrentCountSinceReset
+    UNITS       "tags"
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "Count of tags failed to be identified by this antenna 
+         read point.  If the device does not implement the technology to
+	 unambiguously determine a failed tag singulation, it is acceptable to
+	 leave this value at zero."
+    ::= { epcgAntReadPointEntry 2 }
+
+epcgAntRdPntMemoryReadOperations OBJECT-TYPE
+    SYNTAX      EpcgCurrentCountSinceReset
+    UNITS       "tags"
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "Count of tags successfully having their memory read by this 
+         antenna read point."
+    ::= { epcgAntReadPointEntry 25 }
+
+epcgAntRdPntMemoryReadFailures OBJECT-TYPE
+    SYNTAX      EpcgCurrentCountSinceReset
+    UNITS       "tags"
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "Count of tags failed to have their memory read by this 
+         antenna read point."
+    ::= { epcgAntReadPointEntry 3 }
+
+epcgAntRdPntReadFailureNotifEnable OBJECT-TYPE
+    SYNTAX      TruthValue
+    MAX-ACCESS  read-write
+    STATUS      current
+    DESCRIPTION
+       "This object controls the generation of the 
+        epcgReaderAntennaReadFailure notification as follows.
+        
+        'true'  Indicates that the notification of antenna read
+                failure has been enabled. 
+               
+        'false' Indicates that the notification of antenna read
+                failure changes has been disabled." 
+    ::= { epcgAntReadPointEntry 4 }
+
+epcgAntRdPntReadFailureNotifLevel OBJECT-TYPE
+    SYNTAX      EpcgNotifLevel
+    MAX-ACCESS  read-write
+    STATUS      current
+    DESCRIPTION
+       "The severity level assigned to the 
+        epcgReaderAntennaReadFailure notification."
+    DEFVAL { error }
+    ::= { epcgAntReadPointEntry 5 }
+
+epcgAntRdPntReadFailureSuppressInterval OBJECT-TYPE
+     SYNTAX      Unsigned32 (0 | 1..3600 )
+     UNITS       "seconds"
+     MAX-ACCESS  read-write
+     STATUS      current
+     DESCRIPTION
+       "The length of the interval used to suppress generation 
+        of epcgReaderAntennaReadFailure notifications.
+        
+        Notification will not be suppressed when zero value is 
+        specified."
+    DEFVAL { 0 }
+    ::= { epcgAntReadPointEntry 26 }
+
+epcgAntRdPntReadFailureSuppressions OBJECT-TYPE
+     SYNTAX             Counter32
+     UNITS             "notifications"
+     MAX-ACCESS         read-only
+     STATUS             current
+     DESCRIPTION
+        "The number of epcgReaderAntennaReadFailure
+         notifications that have been suppressed."
+     ::= { epcgAntReadPointEntry 27 }
+
+epcgAntRdPntWriteOperations OBJECT-TYPE
+    SYNTAX      EpcgCurrentCountSinceReset
+    UNITS       "write operations"
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+       "Number of writes successfully done by this antenna read point."
+    ::= { epcgAntReadPointEntry 6 }
+
+epcgAntRdPntWriteFailures OBJECT-TYPE
+    SYNTAX      EpcgCurrentCountSinceReset
+    UNITS       "write operations"
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "Number of writes attempted and failed by this antenna
+         read point."
+    ::= { epcgAntReadPointEntry 7 }
+
+epcgAntRdPntWriteFailuresNotifEnable OBJECT-TYPE
+    SYNTAX                           TruthValue
+    MAX-ACCESS                       read-write
+    STATUS                           current
+    DESCRIPTION
+       "This object controls the generation of the 
+        epcgReaderAntennaWriteFailure notification as follows.
+        
+        'true'  Indicates that the notification of antenna write
+                failure changes has been enabled. 
+               
+        'false' Indicates that the notification of ntenna write
+                failure changes has been disabled." 
+    ::= { epcgAntReadPointEntry 8 }
+
+epcgAntRdPntWriteFailuresNotifLevel  OBJECT-TYPE
+    SYNTAX                           EpcgNotifLevel
+    MAX-ACCESS                       read-write
+    STATUS                           current
+    DESCRIPTION
+        "The severity level assigned to the 
+         epcgReaderAntennaWriteFailure notification."
+    DEFVAL { notice }
+    ::= { epcgAntReadPointEntry 9 }
+
+epcgAntRdPntWriteFailureSuppressInterval OBJECT-TYPE
+     SYNTAX      Unsigned32 (0 | 1..3600 )
+     UNITS       "seconds"
+     MAX-ACCESS  read-write
+     STATUS      current
+     DESCRIPTION
+       "The length of the interval used to suppress generation 
+        of epcgReaderAntennaWriteFailure notifications.
+        
+        Notification will not be suppressed when zero value is 
+        specified."
+    DEFVAL { 0 }
+    ::= { epcgAntReadPointEntry 28 }
+
+epcgAntRdPntWriteFailureSuppressions OBJECT-TYPE
+     SYNTAX             Counter32
+     UNITS             "notifications"
+     MAX-ACCESS         read-only
+     STATUS             current
+     DESCRIPTION
+        "The number of epcgReaderAntennaWriteFailure
+         notifications that have been suppressed."
+     ::= { epcgAntReadPointEntry 29 }
+
+epcgAntRdPntKillOperations OBJECT-TYPE
+    SYNTAX                 EpcgCurrentCountSinceReset
+    UNITS                  "kill operations"
+    MAX-ACCESS             read-only
+    STATUS                 current
+    DESCRIPTION
+        "Number of kill operations successfully done by this antenna read point."
+    ::= { epcgAntReadPointEntry 10 }
+
+epcgAntRdPntKillFailures OBJECT-TYPE
+    SYNTAX               EpcgCurrentCountSinceReset
+    UNITS                "kill operations"
+    MAX-ACCESS           read-only
+    STATUS               current
+    DESCRIPTION
+        "Number of kill operations attempted and failed by this 
+         antenna read point."
+    ::= { epcgAntReadPointEntry 11 }
+
+epcgAntRdPntKillFailuresNotifEnable OBJECT-TYPE
+    SYNTAX                          TruthValue
+    MAX-ACCESS                      read-write
+    STATUS                          current
+    DESCRIPTION
+       "This object controls the generation of the 
+        epcgReaderAntennaKillFailure notification as follows.
+        
+        'true'  Indicates that the notification of antenna kill
+                failure has been enabled. 
+               
+        'false' Indicates that the notification of antenna kill 
+                failure has been disabled." 
+    ::= { epcgAntReadPointEntry 12 }
+
+epcgAntRdPntKillFailuresNotifLevel  OBJECT-TYPE
+    SYNTAX                          EpcgNotifLevel
+    MAX-ACCESS                      read-write
+    STATUS                          current
+    DESCRIPTION
+       "The severity level assigned to the
+         epcgReaderAntennaKillFailure notification."
+    DEFVAL { notice }
+    ::= { epcgAntReadPointEntry 13 }
+
+epcgAntRdPntKillFailureSuppressInterval OBJECT-TYPE
+     SYNTAX      Unsigned32 (0 | 1..3600 )
+     UNITS       "seconds"
+     MAX-ACCESS  read-write
+     STATUS      current
+     DESCRIPTION
+       "The length of the interval used to suppress generation 
+        of epcgReaderAntennaKillFailure notifications.
+        
+        Notification will not be suppressed when zero value is 
+        specified."
+    DEFVAL { 0 }
+    ::= { epcgAntReadPointEntry 30 }
+
+epcgAntRdPntKillFailureSuppressions OBJECT-TYPE
+     SYNTAX             Counter32
+     UNITS             "notifications"
+     MAX-ACCESS         read-only
+     STATUS             current
+     DESCRIPTION
+        "The number of epcgReaderAntennaKillFailure
+         notifications that have been suppressed."
+     ::= { epcgAntReadPointEntry 31 }
+
+epcgAntRdPntEraseOperations OBJECT-TYPE
+    SYNTAX                  EpcgCurrentCountSinceReset
+    UNITS                   "erase operations"
+    MAX-ACCESS              read-only
+    STATUS                  current
+    DESCRIPTION
+        "Number of erase operations successfully completed by this antenna 
+         read point. "
+    ::= { epcgAntReadPointEntry 14 }
+    
+epcgAntRdPntEraseFailures OBJECT-TYPE
+    SYNTAX                      EpcgCurrentCountSinceReset
+    UNITS                       "erase operations"
+    MAX-ACCESS                  read-only
+    STATUS                      current
+    DESCRIPTION
+        "Number of erase operations attempted and failed by this
+         antenna read point."
+    ::= { epcgAntReadPointEntry 15 }
+
+epcgAntRdPntEraseFailuresNotifEnable OBJECT-TYPE
+    SYNTAX                       TruthValue
+    MAX-ACCESS                   read-write
+    STATUS                       current
+    DESCRIPTION
+       "This object controls the generation of the 
+        epcgReaderAntennaEraseFailure notification as follows.
+        
+        'true'  Indicates that the notification of antenna erase
+                failure changes has been enabled. 
+               
+        'false' Indicates that the notification of antenna erase failure
+                changes has been disabled." 
+    ::= { epcgAntReadPointEntry 16 }
+
+epcgAntRdPntEraseFailuresNotifLevel  OBJECT-TYPE
+    SYNTAX                        EpcgNotifLevel
+    MAX-ACCESS                    read-write
+    STATUS                        current
+    DESCRIPTION
+        "The severity level assigned to the
+         epcgReaderAntennaEraseFailure notification."
+    DEFVAL { notice }
+    ::= { epcgAntReadPointEntry 17 }
+
+epcgAntRdPntEraseFailureSuppressInterval OBJECT-TYPE
+     SYNTAX      Unsigned32 (0 | 1..3600 )
+     UNITS       "seconds"
+     MAX-ACCESS  read-write
+     STATUS      current
+     DESCRIPTION
+       "The length of the interval used to suppress generation 
+        of epcgReaderAntennaEraseFailure notifications.
+        
+        Notification will not be suppressed when zero value is 
+        specified."
+    DEFVAL { 0 }
+    ::= { epcgAntReadPointEntry 32 }
+
+epcgAntRdPntEraseFailureSuppressions OBJECT-TYPE
+     SYNTAX             Counter32
+     UNITS             "notifications"
+     MAX-ACCESS         read-only
+     STATUS             current
+     DESCRIPTION
+        "The number of epcgReaderAntennaEraseFailure
+         notifications that have been suppressed."
+     ::= { epcgAntReadPointEntry 33 }
+
+epcgAntRdPntLockOperations OBJECT-TYPE
+    SYNTAX                 EpcgCurrentCountSinceReset
+    UNITS                  "lock operations"
+    MAX-ACCESS             read-only
+    STATUS                 current
+    DESCRIPTION
+       "Number of lock operations successfully issued by this antenna 
+        read point."
+    ::= { epcgAntReadPointEntry 18 }
+    
+epcgAntRdPntLockFailures OBJECT-TYPE
+    SYNTAX               EpcgCurrentCountSinceReset
+    UNITS                "lock operations"
+    MAX-ACCESS           read-only
+    STATUS               current
+    DESCRIPTION
+        "Number of lock operations attempted and failed by this
+         antenna read point."
+    ::= { epcgAntReadPointEntry 19 }
+
+epcgAntRdPntLockFailuresNotifEnable OBJECT-TYPE
+    SYNTAX      TruthValue
+    MAX-ACCESS  read-write
+    STATUS      current
+    DESCRIPTION
+       "This object controls the generation of the 
+        epcgReaderAntennaLockFailure notification
+        as follows.
+        
+        'true'  Indicates that the notification of antenna lock 
+                failure changes has been enabled. 
+               
+        'false' Indicates that the notification of antenna lock 
+                failure changes has been disabled." 
+    ::= { epcgAntReadPointEntry 20 }
+
+epcgAntRdPntLockFailuresNotifLevel  OBJECT-TYPE
+    SYNTAX              EpcgNotifLevel
+    MAX-ACCESS          read-write
+    STATUS              current
+    DESCRIPTION
+        "The severity level assigned to the
+         epcgReaderAntennaLockFailure notification."
+    DEFVAL { notice } 
+    ::= { epcgAntReadPointEntry 21 }
+
+epcgAntRdPntLockFailureSuppressInterval OBJECT-TYPE
+     SYNTAX      Unsigned32 (0 | 1..3600 )
+     UNITS       "seconds"
+     MAX-ACCESS  read-write
+     STATUS      current
+     DESCRIPTION
+       "The length of the interval used to suppress generation 
+        of epcgReaderAntennaLockFailure notifications.
+        
+        Notification will not be suppressed when zero value is 
+        specified."
+    DEFVAL { 0 }
+    ::= { epcgAntReadPointEntry 34 }
+
+epcgAntRdPntLockFailureSuppressions OBJECT-TYPE
+     SYNTAX             Counter32
+     UNITS             "notifications"
+     MAX-ACCESS         read-only
+     STATUS             current
+     DESCRIPTION
+        "The number of epcgReaderAntennaLockFailure
+         notifications that have been suppressed."
+     ::= { epcgAntReadPointEntry 35 }
+
+epcgAntRdPntPowerLevel OBJECT-TYPE
+    SYNTAX             Integer32(-2147483648..2147483647) 
+    MAX-ACCESS         read-only
+    STATUS             current
+    DESCRIPTION
+       "The power level of this antenna read point.  
+        The information provided by this object will be in
+        different formats depending on the value of the 
+        epcgRdrDevNormalizePowerLevel object.  The different
+        formats are provide in the describe for the
+        epcgRdrDevNormalizePowerLevel object."
+    ::= { epcgAntReadPointEntry 22 }
+
+epcgAntRdPntNoiseLevel OBJECT-TYPE
+    SYNTAX              Integer32(-2147483648..2147483647)
+    MAX-ACCESS          read-only
+    STATUS              current
+    DESCRIPTION
+       "The noise level of this antenna read point.  
+        The information provided by this object will be in
+        different formats depending on the value of the 
+        epcgRdrDevNormalizePowerLevel object.  The different
+        formats are provide in the describe for the
+        epcgRdrDevNormalizePowerLevel object."
+    ::= { epcgAntReadPointEntry 23 }
+
+epcgAntRdPntTimeEnergized OBJECT-TYPE
+    SYNTAX              EpcgCurrentCountSinceReset
+    UNITS               "milli-seconds"
+    MAX-ACCESS          read-only
+    STATUS              current
+    DESCRIPTION
+        "The amount of time ,in milli-seconds, that this antenna
+         read point since system started or value
+         was cleared."
+    ::= { epcgAntReadPointEntry 24 }
+
+--*******************************************************************
+--** IO Ports
+--*******************************************************************
+epcgIoPortTable OBJECT-TYPE
+    SYNTAX      SEQUENCE OF EpcgIoPortEntry
+    MAX-ACCESS  not-accessible
+    STATUS      current
+    DESCRIPTION
+        "There is a row entry in this table for each data IO port
+         that the reader supports.  Typically these data IO ports 
+         send and/or receive event triggers."
+    ::= { epcgIoPorts 1 }
+
+epcgIoPortEntry OBJECT-TYPE
+    SYNTAX      EpcgIoPortEntry
+    MAX-ACCESS  not-accessible
+    STATUS      current
+    DESCRIPTION
+        "The properties of a single IO port.  SNMP operations
+         can neither create nor delete rows in the epcgIoPortTable"
+    INDEX { epcgIoPortIndex }
+    ::= { epcgIoPortTable 1 }
+
+EpcgIoPortEntry ::= SEQUENCE {
+         epcgIoPortIndex                     Unsigned32,
+         epcgIoPortName                      SnmpAdminString,
+         epcgIoPortAdminStatus               EpcgAdministrativeStatus,
+         epcgIoPortOperStatus                EpcgOperationalStatus,
+         epcgIoPortOperStatusNotifEnable     TruthValue,
+         epcgIoPortOperStatusNotifLevel      EpcgNotifLevel,
+         epcgIoPortOperStatusNotifFromState  EpcgOperationalEnable,
+         epcgIoPortOperStatusNotifToState    EpcgOperationalEnable,
+         epcgIoPortDescription               SnmpAdminString,
+	 epcgIoPortOperStatusPrior           EpcgOperationalStatus,
+	 epcgIoPortOperStateSuppressInterval Unsigned32,
+	 epcgIoPortOperStateSuppressions     Counter32
+}
+
+epcgIoPortIndex OBJECT-TYPE
+    SYNTAX          Unsigned32(1..2147483647)
+    MAX-ACCESS      not-accessible
+    STATUS          current
+    DESCRIPTION
+        "Index used to uniquely identifying an IO port within 
+         the scope of a given RFID Reader.  This index is assigned 
+         arbitrarily by the SNMP engine and is not required to 
+         be saved over restarts."
+        ::= { epcgIoPortEntry 1 }
+
+epcgIoPortName OBJECT-TYPE
+    SYNTAX          SnmpAdminString
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+         "The name of this IO Port."
+        ::= { epcgIoPortEntry 2 }
+
+epcgIoPortAdminStatus OBJECT-TYPE
+    SYNTAX          EpcgAdministrativeStatus
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+         "The adminstratively specified status of the IO port."
+        ::= { epcgIoPortEntry 3 }
+
+epcgIoPortOperStatus OBJECT-TYPE
+    SYNTAX          EpcgOperationalStatus
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+         "The read point's current operational status."
+        ::= { epcgIoPortEntry 4 }
+
+epcgIoPortOperStatusNotifEnable OBJECT-TYPE
+    SYNTAX          TruthValue
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+       "This object controls the generation of the 
+        epcgReaderIoPortOperationState notification
+        as follows.
+        
+        'true'  Indicates that the notification of IO port operation
+                state changes has been enabled. 
+               
+        'false' Indicates that the notification of IO port operation
+                state changes has been disabled." 
+        ::= { epcgIoPortEntry 5 }
+
+epcgIoPortOperStatusNotifLevel  OBJECT-TYPE
+    SYNTAX          EpcgNotifLevel
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+           "The severity level assigned to the 
+            epcgReaderDeviceOperationState notification"
+    DEFVAL { error }
+        ::= { epcgIoPortEntry 6 }
+
+epcgIoPortOperStatusNotifFromState OBJECT-TYPE
+    SYNTAX          EpcgOperationalEnable
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+         "The source state for state transitions triggering
+          epcgReaderIoPortOperationState notifications"
+    DEFVAL { { unknown, other, up, down} }
+        ::= { epcgIoPortEntry 7 }
+
+epcgIoPortOperStatusNotifToState OBJECT-TYPE
+    SYNTAX          EpcgOperationalEnable
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+         "The destination state for state transitions triggering
+          epcgReaderIoPortOperationState notifications"
+    DEFVAL { { unknown, other, up, down} }
+        ::= { epcgIoPortEntry 8 }
+
+epcgIoPortDescription OBJECT-TYPE
+    SYNTAX          SnmpAdminString
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+       "The operator's textual description of the IO Port."
+        ::= { epcgIoPortEntry 9 }
+
+epcgIoPortOperStatusPrior OBJECT-TYPE
+    SYNTAX          EpcgOperationalStatus
+    MAX-ACCESS      accessible-for-notify
+    STATUS          current
+    DESCRIPTION
+         "Status of IO port prior to status change that 
+          triggered THIS epcgReaderIoPortOperationState."
+        ::= { epcgIoPortEntry 10 }
+
+epcgIoPortOperStateSuppressInterval OBJECT-TYPE
+     SYNTAX      Unsigned32 (0 | 1..3600 )
+     UNITS       "seconds"
+     MAX-ACCESS  read-write
+     STATUS      current
+     DESCRIPTION
+       "The length of the interval used to suppress generation 
+        of epcgReaderIoPortOperationState change notifications.
+        
+        Notification will not be suppressed when zero value is 
+        specified."
+    DEFVAL { 0 }
+    ::= { epcgIoPortEntry 11 }
+
+epcgIoPortOperStateSuppressions OBJECT-TYPE
+     SYNTAX             Counter32
+     UNITS             "notifications"
+     MAX-ACCESS         read-only
+     STATUS             current
+     DESCRIPTION
+        "The number of IO port state change 
+         notifications that have been suppressed."
+     ::= { epcgIoPortEntry 12 }
+                
+--*******************************************************************
+--** (Logical) Sources (of tag data)
+--*******************************************************************
+epcgSourceTable OBJECT-TYPE
+    SYNTAX          SEQUENCE OF EpcgSourceEntry
+    MAX-ACCESS      not-accessible
+    STATUS          current
+    DESCRIPTION
+         "This table contains a row for each Source configured 
+          within a Reader.  A Source is a logical entity with 
+          zero, one, or more ReadPoints assigned to it.  A 
+          Source object may be associated with zero, one or 
+          more ReadTriggers and zero, one or more Notification 
+          Channels."
+        ::= { epcgSources 1 }
+
+epcgSourceEntry OBJECT-TYPE
+    SYNTAX          EpcgSourceEntry
+    MAX-ACCESS      not-accessible
+    STATUS          current
+    DESCRIPTION
+         "The properties of a tag data source. SNMP operations can 
+          neither create nor delete rows of this table."
+
+        INDEX { epcgSrcIndex }
+        ::= { epcgSourceTable 1 }
+
+EpcgSourceEntry ::= SEQUENCE {
+        epcgSrcIndex                    Unsigned32,
+        epcgSrcName                     SnmpAdminString,
+        epcgSrcReadCyclesPerTrigger     Unsigned32,
+        epcgSrcReadDutyCycle            Gauge32,
+        epcgSrcReadTimeout              Unsigned32,
+        epcgSrcGlimpsedTimeout          Unsigned32,
+        epcgSrcObservedThreshold        Unsigned32,
+        epcgSrcObservedTimeout          Unsigned32,
+        epcgSrcLostTimeout              Unsigned32,
+        epcgSrcUnknownToGlimpsedTrans   EpcgCurrentCountSinceReset,
+        epcgSrcGlimpsedToUnknownTrans   EpcgCurrentCountSinceReset,
+        epcgSrcGlimpsedToObservedTrans  EpcgCurrentCountSinceReset,
+        epcgSrcObservedToLostTrans      EpcgCurrentCountSinceReset,
+        epcgSrcLostToGlimpsedTrans      EpcgCurrentCountSinceReset,
+        epcgSrcLostToUnknownTrans       EpcgCurrentCountSinceReset,
+        epcgSrcAdminStatus              EpcgAdministrativeStatus,
+        epcgSrcOperStatus               EpcgOperationalStatus,
+        epcgSrcOperStatusNotifEnable    TruthValue,
+        epcgSrcOperStatusNotifFromState EpcgOperationalEnable,
+        epcgSrcOperStatusNotifToState   EpcgOperationalEnable,
+        epcgSrcOperStatusNotifyLevel    EpcgNotifLevel,
+        epcgSrcSupportsWriteOperations  TruthValue,
+        epcgSrcOperStatusPrior          EpcgOperationalStatus,
+        epcgSrcOperStateSuppressInterval Unsigned32,
+        epcgSrcOperStateSuppressions    Counter32
+}
+
+epcgSrcIndex OBJECT-TYPE
+    SYNTAX          Unsigned32(1..2147483647)
+    MAX-ACCESS      not-accessible
+    STATUS          current
+    DESCRIPTION
+       "Index used for uniquely identifying a source within the 
+        scope of a given RFID reader.  This index is assigned 
+        arbitrarily  by the SNMP engine and is not required to 
+        be saved over restarts."
+    ::= { epcgSourceEntry 1 }
+
+epcgSrcName OBJECT-TYPE
+    SYNTAX          SnmpAdminString
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+         "Unique name assigned to a source."
+    ::= { epcgSourceEntry 2 }
+
+epcgSrcReadCyclesPerTrigger OBJECT-TYPE
+    SYNTAX          Unsigned32
+    UNITS           "cycles"
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+         "Read cycles attempted per trigger."
+    ::= { epcgSourceEntry 3 }
+
+epcgSrcReadDutyCycle OBJECT-TYPE
+    SYNTAX           Gauge32(0..100)
+    UNITS            "percentage"
+    MAX-ACCESS       read-write
+    STATUS           current
+    DESCRIPTION
+       "Duty cycle for this read source."
+    ::= { epcgSourceEntry 4 }
+
+epcgSrcReadTimeout OBJECT-TYPE
+    SYNTAX          Unsigned32
+    UNITS           "milli-seconds"
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+       "Read timeout in milli-seconds for this source."
+    ::= { epcgSourceEntry 5 }
+
+epcgSrcGlimpsedTimeout OBJECT-TYPE
+    SYNTAX          Unsigned32
+    UNITS           "milli-seconds"
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+         "Glimpsed timeout in milli-seconds for this source."
+    ::= { epcgSourceEntry 6 }
+
+epcgSrcObservedThreshold OBJECT-TYPE
+    SYNTAX          Unsigned32
+    UNITS           "milli-seconds"
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+        "Number of milli-seconds required for tag to be considered 
+         observed for this source"
+    ::= { epcgSourceEntry 7 }
+
+epcgSrcObservedTimeout OBJECT-TYPE
+    SYNTAX          Unsigned32
+    UNITS           "milli-seconds"
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+        "Number of milli-seconds required for tag to be considered 
+         observed for this source"
+    ::= { epcgSourceEntry 8 }
+
+epcgSrcLostTimeout OBJECT-TYPE
+    SYNTAX          Unsigned32
+    UNITS           "milli-seconds"
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+        "Number of milli-seconds required for tag to be considered lost
+         for this source"
+    ::= { epcgSourceEntry 9 }
+
+epcgSrcUnknownToGlimpsedTrans OBJECT-TYPE
+    SYNTAX          EpcgCurrentCountSinceReset
+    UNITS           "transitions"
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+       "Number of tags transitioning from 'unknown' status to 
+       'glimpsed' status for this source."
+    ::= { epcgSourceEntry 10 }
+
+epcgSrcGlimpsedToUnknownTrans OBJECT-TYPE
+    SYNTAX          EpcgCurrentCountSinceReset
+    UNITS           "transitions"
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+       "Number of tags transitioning from 'glimpsed' status to
+        'unknown' status for this source."
+    ::= { epcgSourceEntry 11 }
+
+epcgSrcGlimpsedToObservedTrans OBJECT-TYPE
+    SYNTAX          EpcgCurrentCountSinceReset
+    UNITS           "transitions"
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+        "Number of tags transitioning from 'glimpsed' status 
+         to 'observed' status for this source."
+    ::= { epcgSourceEntry 12 }
+
+epcgSrcObservedToLostTrans OBJECT-TYPE
+    SYNTAX          EpcgCurrentCountSinceReset
+    UNITS           "transitions"
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+        "Number of tags transitioning from 'observed' status  
+         to 'lost' status for this source."
+    ::= { epcgSourceEntry 13 }
+
+epcgSrcLostToGlimpsedTrans OBJECT-TYPE
+    SYNTAX          EpcgCurrentCountSinceReset
+    UNITS           "transitions"
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+       "Number of tags transitioning from 'lost' status to
+        'glimpsed' status for this source"
+    ::= { epcgSourceEntry 14 }
+
+epcgSrcLostToUnknownTrans OBJECT-TYPE
+    SYNTAX          EpcgCurrentCountSinceReset
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+       "Number of tags transitioning from 'lost' status to 
+        'unknown' status for this source"
+    ::= { epcgSourceEntry 15 }
+
+epcgSrcAdminStatus OBJECT-TYPE
+    SYNTAX          EpcgAdministrativeStatus
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+         "The adminstratively specified status of the source."
+    ::= { epcgSourceEntry 16 }
+
+epcgSrcOperStatus OBJECT-TYPE
+    SYNTAX          EpcgOperationalStatus
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+         "The source's current operational status."
+    ::= { epcgSourceEntry 17 }
+
+epcgSrcOperStatusNotifEnable OBJECT-TYPE
+    SYNTAX          TruthValue
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+       "This object controls the generation of the 
+        epcgReaderSourceOperationState notification
+        as follows.
+        
+        'true'  Indicates that the notification of Source state
+                changes has been enabled. 
+               
+        'false' Indicates that the notification of Source state
+                changes has been disabled." 
+    ::= { epcgSourceEntry 18 }
+
+epcgSrcOperStatusNotifFromState OBJECT-TYPE
+    SYNTAX          EpcgOperationalEnable
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+       "The source state for state transitions triggering
+        epcgReaderSourceOperationState notifications"
+    DEFVAL { { unknown, other, up, down} }
+    ::= { epcgSourceEntry 19 }
+
+epcgSrcOperStatusNotifToState OBJECT-TYPE
+    SYNTAX          EpcgOperationalEnable
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+       "The destination state for state transitions triggering
+        epcgReaderSourceOperationState notifications"
+    DEFVAL { { unknown, other, up, down} }
+    ::= { epcgSourceEntry 20 }
+
+epcgSrcOperStatusNotifyLevel  OBJECT-TYPE
+    SYNTAX          EpcgNotifLevel
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+       "The severity level assigned to the
+        epcgReaderSourceOperationState notification."
+    DEFVAL { error }
+    ::= { epcgSourceEntry 21 }
+
+epcgSrcSupportsWriteOperations OBJECT-TYPE
+    SYNTAX          TruthValue
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+        "This object provides an indication of the capability of the
+         source as follows.
+         'true'  - source supports read and write operations.
+         'false' - source supports only read operations."
+    ::= { epcgSourceEntry 22 }
+
+epcgSrcOperStatusPrior OBJECT-TYPE
+    SYNTAX          EpcgOperationalStatus
+    MAX-ACCESS      accessible-for-notify
+    STATUS          current
+    DESCRIPTION
+         "Status of EPC data source prior to status change that
+          triggered the epcgReaderSourceOperationState
+          notification."
+    ::= { epcgSourceEntry 23 }
+
+epcgSrcOperStateSuppressInterval OBJECT-TYPE
+     SYNTAX      Unsigned32 (0 | 1..3600 )
+     UNITS       "seconds"
+     MAX-ACCESS  read-write
+     STATUS      current
+     DESCRIPTION
+       "The length of the interval used to suppress generation 
+        of epcgReaderSourceOperationState change notifications.
+        
+        Notification will not be suppressed when zero value is 
+        specified."
+    DEFVAL { 0 }
+    ::= { epcgSourceEntry 24 }
+
+epcgSrcOperStateSuppressions OBJECT-TYPE
+     SYNTAX             Counter32
+     UNITS              "notifications"
+     MAX-ACCESS         read-only
+     STATUS             current
+     DESCRIPTION
+        "The number of source operational state change 
+         notifications that have been suppressed."
+    ::= { epcgSourceEntry 25 }
+
+--*******************************************************************
+--** Notification Channels
+--*******************************************************************
+epcgNotificationChannelTable OBJECT-TYPE
+    SYNTAX                   SEQUENCE OF EpcgNotificationChannelEntry
+    MAX-ACCESS               not-accessible
+    STATUS                   current
+    DESCRIPTION
+         "This table contains one row per notification channel.
+          A notification channel is associated with zero, one
+          or more Sources, and zero, one Notification Triggers"
+    ::= { epcgNotificationChannels 1 }
+
+epcgNotificationChannelEntry OBJECT-TYPE
+    SYNTAX                   EpcgNotificationChannelEntry
+    MAX-ACCESS               not-accessible
+    STATUS                    current
+    DESCRIPTION
+         "The properties of a notification channel.  SNMP operations
+          can neither create nor delete rows of this table"
+        INDEX { epcgNotifChanIndex }
+    ::= { epcgNotificationChannelTable 1 }
+
+EpcgNotificationChannelEntry ::= SEQUENCE {
+          epcgNotifChanIndex              Unsigned32,
+          epcgNotifChanName               SnmpAdminString,
+          epcgNotifChanAddressType        InetAddressType,
+          epcgNotifChanAddress            InetAddress,
+          epcgNotifChanLastAttempt        DateAndTime,
+          epcgNotifChanLastSuccess        DateAndTime,
+          epcgNotifChanAdminStatus        EpcgAdministrativeStatus,
+          epcgNotifChanOperStatus         EpcgOperationalStatus,
+          epcgNotifChanOperNotifEnable    TruthValue,
+          epcgNotifChanOperNotifLevel     EpcgNotifLevel,
+          epcgNotifChanOperNotifFromState EpcgOperationalEnable,
+          epcgNotifChanOperNotifToState   EpcgOperationalEnable,
+	  epcgNotifChanOperStatusPrior           EpcgOperationalStatus,
+	  epcgNotifChanOperStateSuppressInterval Unsigned32,
+	  epcgNotifChanOperStateSuppressions     Counter32
+}
+
+epcgNotifChanIndex OBJECT-TYPE
+    SYNTAX          Unsigned32(1..2147483647)
+    MAX-ACCESS      not-accessible
+    STATUS          current
+    DESCRIPTION
+        "Index used for uniquely identifying a notification channel
+         within the scope of a given RFID Reader.  This index is 
+         assigned arbitrarily by the SNMP engine and is not required
+         to be saved over restarts."
+    ::= { epcgNotificationChannelEntry 1 }
+
+epcgNotifChanName OBJECT-TYPE
+    SYNTAX          SnmpAdminString
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+       "Unique name assigned to Notification Channel."
+    ::= { epcgNotificationChannelEntry 2 }
+
+epcgNotifChanAddressType OBJECT-TYPE
+    SYNTAX          InetAddressType
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+       "The type of Internet address used to identify the 
+        notification channel's destination"
+    ::= { epcgNotificationChannelEntry 3 }
+
+epcgNotifChanAddress OBJECT-TYPE
+    SYNTAX          InetAddress
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+       "The Internet address identifying the notification
+        channel's destination."
+    ::= { epcgNotificationChannelEntry 4 }
+
+epcgNotifChanLastAttempt OBJECT-TYPE
+    SYNTAX          DateAndTime
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+         "Wall-clock time of last attempted notification by this
+          notification channel."
+    ::= { epcgNotificationChannelEntry 5 }
+
+epcgNotifChanLastSuccess OBJECT-TYPE
+    SYNTAX          DateAndTime
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+         "Wall-clock time of last successful notification sent by
+          this notification channel."
+    ::= { epcgNotificationChannelEntry 6 }
+
+epcgNotifChanAdminStatus OBJECT-TYPE
+    SYNTAX          EpcgAdministrativeStatus
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+       "The adminstratively specified status of the 
+        notification channel."
+    ::= { epcgNotificationChannelEntry 7 }
+
+epcgNotifChanOperStatus OBJECT-TYPE
+    SYNTAX          EpcgOperationalStatus
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+       "The notification channel's current operational status."
+    ::= { epcgNotificationChannelEntry 8 }
+
+epcgNotifChanOperNotifEnable OBJECT-TYPE
+    SYNTAX          TruthValue
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+       "This object controls the generation of the 
+        epcgReaderNotificationChanOperState notification
+        as follows.
+        
+        'true' - Indicates that the sending of notification channel
+                 operation state changes has been enabled. 
+               
+        'false' - Indicates that the sending of notification channel
+                  operation state changes has been disabled." 
+    ::= { epcgNotificationChannelEntry 9 }
+
+epcgNotifChanOperNotifLevel  OBJECT-TYPE
+    SYNTAX          EpcgNotifLevel
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+       "The severity level assigned to the 
+        epcgReaderNotificationChanOperState notification."
+    DEFVAL { error }
+    ::= { epcgNotificationChannelEntry 10 }
+
+epcgNotifChanOperNotifFromState OBJECT-TYPE
+    SYNTAX          EpcgOperationalEnable
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+       "The source state for the state transitions triggering 
+        epcgReaderNotificationChanOperState notificatons"
+    DEFVAL { { unknown, other, up, down} }
+    ::= { epcgNotificationChannelEntry 11 }
+
+epcgNotifChanOperNotifToState OBJECT-TYPE
+    SYNTAX          EpcgOperationalEnable
+    MAX-ACCESS      read-write
+    STATUS          current
+    DESCRIPTION
+       "The destination state for the state transitions triggering 
+        epcgReaderNotificationChanOperState  notifications"
+    DEFVAL { { unknown, other, up, down} }
+    ::= { epcgNotificationChannelEntry 12 }
+
+epcgNotifChanOperStatusPrior OBJECT-TYPE
+    SYNTAX          EpcgOperationalStatus
+    MAX-ACCESS      accessible-for-notify
+    STATUS          current
+    DESCRIPTION
+        "The status of notification channel prior to the current 
+         status  change that triggered the 
+         epcgReaderNotificationChanOperState notification"
+    ::= { epcgNotificationChannelEntry 13 }
+
+epcgNotifChanOperStateSuppressInterval OBJECT-TYPE
+     SYNTAX      Unsigned32 (0 | 1..3600 )
+     UNITS       "seconds"
+     MAX-ACCESS  read-write
+     STATUS      current
+     DESCRIPTION
+       "The length of the interval used to suppress generation 
+        of epcgReaderNotificationChanOperState change notifications.
+        
+        Notification will not be suppressed when zero value is 
+        specified."
+    DEFVAL { 0 }
+    ::= { epcgNotificationChannelEntry 14 }
+
+epcgNotifChanOperStateSuppressions OBJECT-TYPE
+     SYNTAX             Counter32
+     UNITS              "notifications"
+     MAX-ACCESS         read-only
+     STATUS             current
+     DESCRIPTION
+         "The number of channel operational state change 
+        notifications that have been suppressed."
+     ::= { epcgNotificationChannelEntry 15 }
+
+--*******************************************************************
+--** Triggers
+--*******************************************************************
+epcgTriggerTable OBJECT-TYPE
+    SYNTAX       SEQUENCE OF EpcgTriggerEntry
+    MAX-ACCESS   not-accessible
+    STATUS       current
+    DESCRIPTION
+         "This table contains one row per trigger.  A 
+          Trigger is associated with zero or one IO Port.
+          A Trigger may be associated with zero or more Sources 
+          and zero or more Notification Channels"
+    ::= { epcgTriggers 1 }
+
+epcgTriggerEntry OBJECT-TYPE
+    SYNTAX       EpcgTriggerEntry
+    MAX-ACCESS   not-accessible
+    STATUS       current
+    DESCRIPTION
+         "The properties of a trigger. SNMP operations can neither
+          create nor delete rows in the epcgTriggerTable."
+        INDEX { epcgTrigIndex }
+    ::= { epcgTriggerTable 1 }
+        
+EpcgTriggerEntry ::= SEQUENCE {
+        epcgTrigIndex           Unsigned32,
+        epcgTrigName            SnmpAdminString,
+        epcgTrigType            EpcgTriggerType,
+        epcgTrigParameters      SnmpAdminString,
+        epcgTriggerMatches      EpcgCurrentCountSinceReset,
+        epcgTrigIoPort          RowPointer
+        }
+
+epcgTrigIndex       OBJECT-TYPE
+    SYNTAX          Unsigned32(1..2147483647)
+    MAX-ACCESS      not-accessible
+    STATUS          current
+    DESCRIPTION
+       "Index uniquely identifying this trigger.  This index is 
+        assigned arbitrarily by the SNMP engine and is not 
+        required to be saved over restarts."
+    ::= { epcgTriggerEntry 1 }
+
+epcgTrigName        OBJECT-TYPE
+    SYNTAX          SnmpAdminString
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+         "Name of this trigger."
+    ::= { epcgTriggerEntry 2 }
+
+epcgTrigType        OBJECT-TYPE
+    SYNTAX          EpcgTriggerType
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+         "The trigger type."
+    ::= { epcgTriggerEntry 3 }
+
+epcgTrigParameters  OBJECT-TYPE
+    SYNTAX          SnmpAdminString
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+       "The epcgTrigParameters value must comply with the constraints 
+        defined for the 'triggervalue' datatype in the EPCglobal 
+        Reader Protocol Specification, 1.1 or greater."
+    REFERENCE
+         "EPCglobal Reader Protocol Specification section 6.4"
+    ::= { epcgTriggerEntry 4 }
+
+epcgTriggerMatches  OBJECT-TYPE
+    SYNTAX          EpcgCurrentCountSinceReset
+    UNITS           "occurrences"
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+         "Number of times this trigger has matched."
+    ::= { epcgTriggerEntry 5 }
+
+epcgTrigIoPort OBJECT-TYPE
+    SYNTAX          RowPointer
+    MAX-ACCESS      read-only
+    STATUS          current
+    DESCRIPTION
+         "A pointer to an entry in the IoPort table.  A
+          trigger need not correspond to an IO port 
+          (e.g., a trigger of type timer has not IO port 
+          association), in which case this 
+          RowPointer object has the value zeroDotzero"
+    ::= { epcgTriggerEntry 6 }
+
+--*******************************************************************
+--** Notification Trigger Table
+--*******************************************************************
+epcgNotifTrigTable OBJECT-TYPE
+    SYNTAX          SEQUENCE OF EpcgNotifTrigEntry
+    MAX-ACCESS      not-accessible
+    STATUS          current
+    DESCRIPTION
+       "This table associates triggers with notification channels.
+        Multiple triggers may be associated with the same 
+        notification channel and a single trigger may be associated
+        with multiple notification channels.  There will be one
+        row entry for each unique pairing of trigger and notification
+        channel. "
+    ::= { epcgTriggers 2 }
+
+epcgNotifTrigEntry OBJECT-TYPE
+    SYNTAX          EpcgNotifTrigEntry
+    MAX-ACCESS      not-accessible
+    STATUS          current
+    DESCRIPTION
+       "Identifies a single pairing of a trigger and notification
+        channel.  Entries can be added and removed from this
+        table via epcgNotifTrigRowStatus in accordance with the
+        RowStatus convention."
+        INDEX { epcgNotifChanIndex,
+                epcgTrigIndex }
+    ::= { epcgNotifTrigTable 1 }
+
+EpcgNotifTrigEntry ::= SEQUENCE {
+        epcgNotifTrigRowStatus          RowStatus
+        }
+
+epcgNotifTrigRowStatus OBJECT-TYPE
+    SYNTAX             RowStatus
+    MAX-ACCESS         read-create
+    STATUS             current
+    DESCRIPTION
+       "The status of this row."
+    ::= { epcgNotifTrigEntry 1 }
+
+--*******************************************************************
+--** Read Trigger Table
+--*******************************************************************
+epcgReadTrigTable OBJECT-TYPE
+    SYNTAX          SEQUENCE OF EpcgReadTrigEntry
+    MAX-ACCESS      not-accessible
+    STATUS          current
+    DESCRIPTION
+       "This table associates Sources with Triggers.  Multiple 
+        triggers may be associated with the same Source and a
+        single trigger may be associated with multiple Sources.
+        There will be one row entry for each unique pairing of
+        Trigger and Source.  Entries can be added and removed from
+        this table via epcgReadTrigRowStatus in accordance with the
+        RowStatus convention."
+    ::= { epcgTriggers 3 }
+
+epcgReadTrigEntry OBJECT-TYPE
+    SYNTAX        EpcgReadTrigEntry
+    MAX-ACCESS    not-accessible
+    STATUS        current
+    DESCRIPTION
+       "Identifies a single pairing of a Source and Trigger."
+        INDEX { epcgSrcIndex,
+                epcgTrigIndex }
+    ::= { epcgReadTrigTable 1 }
+
+EpcgReadTrigEntry ::= SEQUENCE {
+        epcgReadTrigRowStatus           RowStatus
+        }
+        
+epcgReadTrigRowStatus OBJECT-TYPE
+    SYNTAX          RowStatus
+    MAX-ACCESS      read-create
+    STATUS          current
+    DESCRIPTION
+       "The status of this row."
+    ::= { epcgReadTrigEntry 1 }
+
+--*******************************************************************
+--** ReadPoint-Source Table
+--*******************************************************************
+epcgRdPntSrcTable OBJECT-TYPE
+    SYNTAX          SEQUENCE OF EpcgRdPntSrcEntry
+    MAX-ACCESS      not-accessible
+    STATUS          current
+    DESCRIPTION
+       "This table associates ReadPoints with (tag) Sources.  
+        Multiple ReadPoints may be associated with the same
+        Source and a single ReadPoint may be associated with
+        multiple Sources.  There will be one row entry for 
+        each unique pairing of ReadPoint and Source"
+    ::= { epcgSources 3 }
+
+epcgRdPntSrcEntry OBJECT-TYPE
+    SYNTAX         EpcgRdPntSrcEntry
+    MAX-ACCESS     not-accessible
+    STATUS         current
+    DESCRIPTION
+       "Identifies a single pairing of a Read Point and Source."
+        INDEX { epcgReadPointIndex,
+                epcgSrcIndex }
+    ::= { epcgRdPntSrcTable 1 }
+
+EpcgRdPntSrcEntry ::= SEQUENCE {
+        epcgRdPntSrcRowStatus           RowStatus
+        }
+    
+epcgRdPntSrcRowStatus OBJECT-TYPE
+    SYNTAX          RowStatus
+    MAX-ACCESS      read-create
+    STATUS          current
+    DESCRIPTION
+       "The status of this row."
+    ::= { epcgRdPntSrcEntry 1 }
+
+
+--*******************************************************************
+--** Notification Channel - Source Table
+--*******************************************************************
+epcgNotifChanSrcTable OBJECT-TYPE
+    SYNTAX            SEQUENCE OF EpcgNotifChanSrcEntry
+    MAX-ACCESS        not-accessible
+    STATUS            current
+    DESCRIPTION
+       "This table associates Notification Channels with 
+        (tag) Sources.  Multiple Notification Channels may be 
+        associated with the same Source and a single Notification
+        Channel may be associated with multiple Sources.  There 
+        will be one row entry for each unique pairing of 
+        Notification Channel and Source."
+    ::= { epcgSources 4 }
+
+epcgNotifChanSrcEntry OBJECT-TYPE
+    SYNTAX            EpcgNotifChanSrcEntry
+    MAX-ACCESS        not-accessible
+    STATUS             current
+    DESCRIPTION
+       "Identifies a single pairing of a Notificaiton
+        Channel and Source.
+        
+        Entries can be added and removed from
+        this table via epcgNotifChanSrcRowStatus in accordance with the
+        RowStatus convention."
+        INDEX { epcgNotifChanIndex,
+                epcgSrcIndex }
+    ::= { epcgNotifChanSrcTable 1 }
+
+EpcgNotifChanSrcEntry ::= SEQUENCE {
+        epcgNotifChanSrcRowStatus        RowStatus
+        }
+
+epcgNotifChanSrcRowStatus OBJECT-TYPE
+    SYNTAX                RowStatus
+    MAX-ACCESS            read-create
+    STATUS                current
+    DESCRIPTION
+       "The status of this row."
+    ::= { epcgNotifChanSrcEntry 1 }
+
+--*******************************************************************
+--* Conformance definitions
+--*******************************************************************
+epcgReaderGroups      OBJECT IDENTIFIER ::= { epcgReaderConformance 1 }
+epcgReaderCompliances OBJECT IDENTIFIER ::= { epcgReaderConformance 2 }
+
+
+--*******************************************************************
+--* Compliances statements
+--*******************************************************************
+epcgReaderStandardCompliance MODULE-COMPLIANCE
+    STATUS      current
+    DESCRIPTION
+        "This define the initial standard implementation requirements 
+         for an EPCglobal-compliant Reader.
+         
+         The following groups are optional.
+            epcgReaderGlobalMeasurementsGroup
+            epcgReaderAntennaSuppressNotifyGroup
+            epcgReaderNotifGroup
+            epcgReaderMemoryGroup
+            epcgReaderServerInfoGroup
+            epcgReaderIOPortGroup
+            epcgReaderNotifChannelGroup
+            epcgReaderTriggerGroup
+            epcgReaderTableAssocGroup
+         "
+    MODULE      -- This module
+        MANDATORY-GROUPS    { epcgReaderDeviceInformationGroup,
+                              epcgReaderOperationGroup,
+                              epcgReadPointGroup,
+                              epcgReaderAntennaReadPointGroup,
+                              epcgReaderSourceGroup,
+			      epcgReaderMandatoryTableAssocGroup
+                            }
+                            
+--  *** epcgSourceTable ***************************************
+    OBJECT           epcgSrcReadCyclesPerTrigger
+    MIN-ACCESS       read-only
+    DESCRIPTION      "Write access is not required."
+    
+    OBJECT           epcgSrcReadDutyCycle
+    MIN-ACCESS       read-only
+    DESCRIPTION      "Write access is not required."
+
+    OBJECT           epcgSrcReadTimeout
+    MIN-ACCESS       read-only
+    DESCRIPTION      "Write access is not required."
+    
+    OBJECT           epcgSrcGlimpsedTimeout
+    MIN-ACCESS       read-only
+    DESCRIPTION      "Write access is not required."
+    
+    OBJECT           epcgSrcObservedThreshold
+    MIN-ACCESS       read-only
+    DESCRIPTION      "Write access is not required."
+    
+    OBJECT           epcgSrcObservedTimeout
+    MIN-ACCESS       read-only
+    DESCRIPTION      "Write access is not required."
+    
+    OBJECT           epcgSrcLostTimeout
+    MIN-ACCESS       read-only
+    DESCRIPTION      "Write access is not required."
+    
+    ::= { epcgReaderCompliances 1 }
+
+--*******************************************************************
+--** Units of conformance 
+--*******************************************************************
+epcgReaderNotifGroup  NOTIFICATION-GROUP
+    NOTIFICATIONS { epcgReaderDeviceOperationState,
+                    epcgRdrDevMemoryState,
+                    epcgReadPointOperationState,
+                    epcgReaderAntennaReadFailure,
+                    epcgReaderAntennaWriteFailure,
+                    epcgReaderAntennaKillFailure,
+                    epcgReaderAntennaEraseFailure,
+                    epcgReaderAntennaLockFailure,
+                    epcgReaderIoPortOperationState,
+                    epcgReaderSourceOperationState,
+                    epcgReaderNotificationChanOperState
+                  }
+    STATUS      current
+    DESCRIPTION
+       "Reader device notifications."
+    ::= { epcgReaderGroups 1 }
+
+
+epcgReaderGlobalMeasurementsGroup OBJECT-GROUP
+    OBJECTS     { epcgGlobalCountersData }
+    STATUS      current
+    DESCRIPTION
+        "Reader device global measurements objects."
+    ::= { epcgReaderGroups 2 }
+    
+
+epcgReaderDeviceInformationGroup OBJECT-GROUP
+    OBJECTS     { epcgRdrDevDescription,
+                  epcgRdrDevRole,
+                  epcgRdrDevEpc,
+                  epcgRdrDevSerialNumber,
+                  epcgRdrDevTimeUtc,
+                  epcgRdrDevCurrentSource,
+                  epcgRdrDevReboot,
+                  epcgRdrDevResetStatistics,
+                  epcgRdrDevResetTimestamp,
+                  epcgRdrDevNormalizePowerLevel,
+                  epcgRdrDevNormalizeNoiseLevel
+                }
+    STATUS      current
+    DESCRIPTION
+       "Reader device information objects"
+    ::= { epcgReaderGroups 3 }
+
+
+epcgReaderOperationGroup OBJECT-GROUP
+    OBJECTS     { epcgRdrDevOperStatus,
+                  epcgRdrDevOperStatusPrior,
+                  epcgRdrDevOperStateEnable,
+                  epcgRdrDevOperNotifFromState,
+                  epcgRdrDevOperNotifToState,
+                  epcgRdrDevOperNotifStateLevel,
+                  epcgRdrDevOperStateSuppressInterval,
+                  epcgRdrDevOperStateSuppressions
+                }
+    STATUS      current
+    DESCRIPTION
+       "Reader device operation objects."
+    ::= { epcgReaderGroups 4 }
+
+    
+epcgReaderMemoryGroup   OBJECT-GROUP
+    OBJECTS     { epcgRdrDevFreeMemory,
+                  epcgRdrDevFreeMemoryNotifEnable,
+                  epcgRdrDevFreeMemoryNotifLevel,
+                  epcgRdrDevFreeMemoryOnsetThreshold,
+                  epcgRdrDevFreeMemoryAbateThreshold,
+                  epcgRdrDevFreeMemoryStatus,
+                  epcgRdrDevMemStateSuppressInterval,
+                  epcgRdrDevMemStateSuppressions
+                }
+    STATUS      current
+    DESCRIPTION
+        "This mandatory group defines Device-level objects"
+    ::= { epcgReaderGroups 5 }
+
+
+epcgReaderServerInfoGroup OBJECT-GROUP
+    OBJECTS     { epcgReaderServerAddressType,
+                  epcgReaderServerAddress,
+                  epcgReaderServerRowStatus
+                }
+    STATUS      current
+    DESCRIPTION
+       "Reader device Server objects."
+    ::= { epcgReaderGroups 6 }
+
+
+epcgReadPointGroup OBJECT-GROUP
+    OBJECTS     { epcgReadPointName,
+                  epcgReadPointDescription,
+                  epcgReadPointAdminStatus,
+                  epcgReadPointOperStatus,
+                  epcgReadPointOperStateNotifyEnable,
+                  epcgReadPointOperNotifyFromState,
+                  epcgReadPointOperNotifyToState,
+                  epcgReadPointOperNotifyStateLevel,
+                  epcgReadPointOperStatusPrior,
+                  epcgReadPointOperStateSuppressInterval,
+                  epcgReadPointOperStateSuppressions
+                }
+    STATUS      current
+    DESCRIPTION
+        "Reader - Read Point Objects."
+    ::= { epcgReaderGroups 7 }
+
+epcgReaderAntennaReadPointGroup  OBJECT-GROUP
+    OBJECTS     {  epcgAntRdPntTagsIdentified,
+                   epcgAntRdPntTagsNotIdentified,
+                   epcgAntRdPntMemoryReadFailures,
+                   epcgAntRdPntReadFailureNotifEnable,
+                   epcgAntRdPntReadFailureNotifLevel,
+                   epcgAntRdPntWriteOperations,
+                   epcgAntRdPntWriteFailures,
+                   epcgAntRdPntWriteFailuresNotifEnable,
+                   epcgAntRdPntWriteFailuresNotifLevel,
+                   epcgAntRdPntKillOperations,
+                   epcgAntRdPntKillFailures,
+                   epcgAntRdPntKillFailuresNotifEnable,
+                   epcgAntRdPntKillFailuresNotifLevel,
+                   epcgAntRdPntEraseOperations,
+                   epcgAntRdPntEraseFailures,
+                   epcgAntRdPntEraseFailuresNotifEnable,
+                   epcgAntRdPntEraseFailuresNotifLevel,
+                   epcgAntRdPntLockOperations,
+                   epcgAntRdPntLockFailures,
+                   epcgAntRdPntLockFailuresNotifEnable,
+                   epcgAntRdPntLockFailuresNotifLevel,
+                   epcgAntRdPntPowerLevel,
+                   epcgAntRdPntNoiseLevel,
+                   epcgAntRdPntTimeEnergized,
+                   epcgAntRdPntMemoryReadOperations
+                }
+    STATUS      current
+    DESCRIPTION
+       "Reader - Antenna Read Point objects."
+    ::= { epcgReaderGroups 8 }
+    
+
+epcgReaderAntennaSuppressNotifyGroup OBJECT-GROUP
+    OBJECTS     { epcgAntRdPntReadFailureSuppressInterval, 
+		  epcgAntRdPntReadFailureSuppressions,
+		  epcgAntRdPntWriteFailureSuppressInterval,
+		  epcgAntRdPntWriteFailureSuppressions,
+		  epcgAntRdPntKillFailureSuppressInterval,
+		  epcgAntRdPntKillFailureSuppressions,
+		  epcgAntRdPntEraseFailureSuppressInterval,
+		  epcgAntRdPntEraseFailureSuppressions,
+		  epcgAntRdPntLockFailureSuppressInterval,
+		  epcgAntRdPntLockFailureSuppressions
+                }
+    STATUS      current
+    DESCRIPTION
+       "Reader - Antenna Read Point suppress notifications."
+    ::= { epcgReaderGroups 9 }
+
+
+epcgReaderIOPortGroup   OBJECT-GROUP
+    OBJECTS     { epcgIoPortName,
+                  epcgIoPortAdminStatus,
+                  epcgIoPortOperStatus,
+                  epcgIoPortOperStatusNotifEnable,
+                  epcgIoPortOperStatusNotifFromState,
+                  epcgIoPortOperStatusNotifToState,
+                  epcgIoPortOperStatusNotifLevel,
+                  epcgIoPortDescription,
+                  epcgIoPortOperStatusPrior,
+                  epcgIoPortOperStateSuppressInterval,
+                  epcgIoPortOperStateSuppressions
+                }
+    STATUS      current
+    DESCRIPTION
+       "Reader IO Port objects."
+    ::= { epcgReaderGroups 10 }
+
+epcgReaderSourceGroup   OBJECT-GROUP
+    OBJECTS     { epcgSrcName,
+                  epcgSrcReadCyclesPerTrigger,
+                  epcgSrcReadDutyCycle,
+                  epcgSrcReadTimeout,
+                  epcgSrcGlimpsedTimeout,
+                  epcgSrcObservedThreshold,
+                  epcgSrcObservedTimeout,
+                  epcgSrcLostTimeout,
+                  epcgSrcUnknownToGlimpsedTrans,
+                  epcgSrcGlimpsedToUnknownTrans,
+                  epcgSrcGlimpsedToObservedTrans,
+                  epcgSrcObservedToLostTrans,
+                  epcgSrcLostToGlimpsedTrans,
+                  epcgSrcLostToUnknownTrans,
+                  epcgSrcAdminStatus,
+                  epcgSrcOperStatus,
+                  epcgSrcOperStatusNotifEnable,
+                  epcgSrcOperStatusNotifFromState,
+                  epcgSrcOperStatusNotifToState,
+                  epcgSrcOperStatusNotifyLevel,
+                  epcgSrcSupportsWriteOperations,
+                  epcgSrcOperStatusPrior,
+                  epcgSrcOperStateSuppressInterval,
+                  epcgSrcOperStateSuppressions
+                }
+    STATUS      current
+    DESCRIPTION
+        "Reader (Tag Data) Source objects."
+    ::= { epcgReaderGroups 11 }
+
+epcgReaderNotifChannelGroup      OBJECT-GROUP
+    OBJECTS     { epcgNotifChanName,
+                  epcgNotifChanAddressType,
+                  epcgNotifChanAddress,
+                  epcgNotifChanLastAttempt,
+                  epcgNotifChanLastSuccess,
+                  epcgNotifChanAdminStatus,
+                  epcgNotifChanOperStatus,
+                  epcgNotifChanOperNotifEnable,
+                  epcgNotifChanOperNotifLevel,
+                  epcgNotifChanOperNotifFromState,
+                  epcgNotifChanOperNotifToState,
+                  epcgNotifChanOperStatusPrior,
+                  epcgNotifChanOperStateSuppressInterval,
+                  epcgNotifChanOperStateSuppressions
+                }
+    STATUS      current
+    DESCRIPTION
+                "Notification Channel objects"
+    ::= { epcgReaderGroups 12 }
+
+epcgReaderTriggerGroup  OBJECT-GROUP
+    OBJECTS     { epcgTrigName,
+                  epcgTrigType,
+                  epcgTrigParameters,
+                  epcgTriggerMatches,
+                  epcgTrigIoPort
+                }
+    STATUS      current
+    DESCRIPTION
+       "Reader Trigger objects."
+    ::= { epcgReaderGroups 13 }
+
+epcgReaderTableAssocGroup OBJECT-GROUP
+    OBJECTS     { epcgNotifTrigRowStatus,
+                  epcgReadTrigRowStatus,
+                  epcgNotifChanSrcRowStatus
+                }
+    STATUS      current
+    DESCRIPTION
+       "Contains objects that maintain associations between rows 
+        in different tables."
+    ::= { epcgReaderGroups 14 }
+
+epcgReaderMandatoryTableAssocGroup OBJECT-GROUP
+    OBJECTS     { epcgRdPntSrcRowStatus
+                }
+    STATUS      current
+    DESCRIPTION
+       "Contains objects that maintain associations between rows 
+        in different tables."
+    ::= { epcgReaderGroups 15 }
+
+END

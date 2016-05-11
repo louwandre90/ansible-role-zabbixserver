@@ -1,0 +1,18 @@
+[Unit]
+Description=Zabbix Server
+After=syslog.target network.target postgresql.service
+
+[Service]
+Type=forking
+PermissionsStartOnly=true
+PIDFile=/var/run/zabbix/zabbix_server.pid
+ExecStartPre=/bin/mkdir -p /var/run/zabbix/
+ExecStartPre=/bin/mkdir -p /var/log/zabbix/
+ExecStartPre=/bin/chown -R zabbix:zabbix /var/run/zabbix/
+ExecStartPre=/bin/chown -R zabbix:zabbix /var/log/zabbix/
+ExecStart=/usr/local/sbin/zabbix_server
+
+User=zabbix
+
+[Install]
+WantedBy=multi-user.target

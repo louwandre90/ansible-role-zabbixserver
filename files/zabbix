@@ -1,0 +1,20 @@
+#Zabbix Server Webpage config
+server {
+    listen 80;
+    server_name _;
+ 
+    root /var/www/html/zabbix;
+    index index.php ;
+ 
+ 
+    location ~ \.php$ {
+            #uncomment if zabbix is not the root
+            #set $php_root /var/www/html;
+            #if ($request_uri ~* /zabbix){
+            #        set $php_root /var/www/html/zabbix;
+            #}
+ 
+            include snippets/fastcgi-php.conf;
+            fastcgi_pass unix:/var/run/php5-fpm.sock;
+        }
+}

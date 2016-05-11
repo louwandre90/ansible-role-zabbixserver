@@ -1,0 +1,27 @@
+---
+# vars file for ansible-role-zabbixserver
+zabbixserver_packages:
+    - build-essential 
+    - gcc
+    - curl 
+    - wget 
+    - libsnmp-dev 
+    - libcurl4-gnutls-dev 
+    - libxml2-dev 
+    - unixodbc-dev 
+    - libssh-dev 
+    - libssh2-1-dev 
+    - php5-fpm 
+    - php5-gd 
+    - php5-pgsql 
+    - fping 
+    - snmp
+    - postgresql
+    - postgresql-server-dev-all
+    - nginx
+    - python-psycopg2
+    - libpq-dev
+    - snmp-mibs-downloader
+
+slackurl: https://hooks.slack.com/services/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 
+zabbix_url: http://apcglobal.mopani.com.zm/zabbix/

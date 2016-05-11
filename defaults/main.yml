@@ -1,0 +1,5 @@
+---
+# defaults file for ansible-role-zabbixserver
+username: jarvis
+# TODO: encrypt this file
+pgpassword: zabbix
