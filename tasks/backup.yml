@@ -1,0 +1,34 @@
+---
+# Backup tasks for ansible-role-zabbixserver (NOTE: Needs existing zabbix installation to run)
+## Backup Existing Zabbix install
+## --------------------------
+- stat: path=/home/{{ username }}/.pgpass
+  register: pgpass_file_stat
+
+- name: Create pgpass file
+  when: pgpass_file_stat.stat.exists == False
+  template: src=.pgpass.j2 dest=/home/{{ username }}/.pgpass owner={{ username }} group={{ username }} mode=0600
+
+- name: Dump existing Database 
+  become: yes
+  command: pg_dump -h localhost -U zabbix zabbix -f /home/{{ username }}/zabbix_backup.psql  
+
+- name: Copy zabbix config file to home directory
+  become: yes
+  command: cp /usr/local/etc/zabbix_server.conf /home/{{ username }}/
+  tags:
+      - config
+
+- name: Copy php config file to home dir
+  become: yes
+  command: cp /var/www/html/zabbix/conf/zabbix.conf.php /home/{{ username }}/
+  tags: 
+     - php
+
+- name: Copy slack script to home dir
+  become: yes
+  command: cp /usr/local/share/zabbix/alertscripts/slack.sh /home/{{ username }}/
+  tags:
+      - slack
+
+

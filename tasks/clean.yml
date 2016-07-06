@@ -1,0 +1,27 @@
+---
+# Clean up tasks for ansible-role-zabbixserver 
+## --------------------------
+- name: Delete pgpassfile 
+  file: dest=/home/{{ username }}/.pgpass state=absent
+
+- name: Delete zabbix archive
+  file: dest=/home/{{ username }}/zabbix-3.0.2 state=absent
+
+- name: Delete zabbix Download
+  file: dest=/home/{{ username }}/zabbix-3.0.2.tar.gz state=absent
+
+- name: Delete zabbix database backup
+  file: dest=/home/{{ username }}/zabbix_backup.psql state=absent
+
+- name: Delete zabbix config file
+  file: dest=/home/{{ username }}/zabbix_server.conf state=absent
+
+- name: Delete zabbix php config file
+  file: dest=/home/{{ username }}/zabbix.conf.php state=absent
+
+- name: Delete zabbix slack file
+  file: dest=/home/{{ username }}/slack.sh state=absent
+
+
+
+

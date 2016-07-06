@@ -1,0 +1,64 @@
+---
+# Restore tasks for ansible-role-zabbixserver (NOTE: Need to have backups to restore - backup.yml)
+## Restore backups
+## --------------------------
+- name: Stop zabbix-server
+  notify: 
+    - stop nginx 
+
+# Run handlers
+- meta: flush_handlers
+ 
+- name: Remove postgres zabbix database
+  become: yes
+  become_user: postgres
+  postgresql_db: name=zabbix owner=zabbix state=absent
+
+- name: Create a empty postgres zabbix database
+  become: yes
+  become_user: postgres
+  postgresql_db: name=zabbix owner=zabbix 
+
+- stat: path=/home/{{ username }}/.pgpass
+  register: pgpass_file_stat
+
+- name: Create pgpass file
+  when: pgpass_file_stat.stat.exists == False
+  template: src=.pgpass.j2 dest=/home/{{ username }}/.pgpass owner={{ username }} group={{ username }} mode=0600
+
+# NOTE:Make sure backup file is present in home directory, will be skipped if not there
+- name: Restore zabbix database
+  become: yes
+  shell: psql -h localhost zabbix zabbix < /home/{{ username }}/zabbix_backup.sql
+
+- stat: path=/home/{{ username }}/zabbix_server.conf
+  register: zabbixconf_file_stat
+
+- name: Copy zabbix config file 
+  when: zabbixconf_file_stat.stat.exists == True
+  become: yes
+  command: cp /home/{{ username }}/zabbix_server.conf /usr/local/etc/ 
+
+- stat: path=/home/{{ username }}/zabbix.conf.php
+  register: phpconf_file_stat
+
+- name: Copy php config file
+  when: phpconf_file_stat.stat.exists == True
+  become: yes
+  command: cp /home/{{ username }}/zabbix.conf.php /var/www/html/zabbix/conf/ 
+
+- stat: path=/home/{{ username }}/slack.sh
+  register: slack_file_stat
+
+- name: Copy slack script
+  when: slack_file_stat.stat.exists == True
+  become: yes
+  command: cp /home/{{ username }}/slack.sh /usr/local/share/zabbix/alertscripts/ 
+
+- name: Start zabbix-server
+  notify: 
+    - start nginx 
+
+# Run handlers
+- meta: flush_handlers
+ 
