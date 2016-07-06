@@ -3,3 +3,16 @@
 - include: install.yml
   tags:
       - install
+
+  #- include: backup.yml 
+  #tags:
+  #   - backup
+
+  #- include: restore.yml 
+  #tags:
+  #    - restore
+
+- include: clean.yml 
+  tags:
+      - clean
+
