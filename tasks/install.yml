@@ -17,8 +17,7 @@
 - stat: path=/home/{{username}}/zabbix-3.0.2
   register: zabbix_extract_stat
 
-
-- name:  Extract kodibackup tar
+- name:  Extract zabbix  tar
   when:  zabbix_tar_stat.stat.exists == True and zabbix_extract_stat.stat.exists == False 
   unarchive: src=/home/{{ username }}/zabbix-3.0.2.tar.gz dest=/home/{{ username }}/ copy=no owner={{ username }} group={{ username }}
 
@@ -68,7 +67,7 @@
 
 - name: Configure Make install
   register: config_makefile
-  when: makefile_stat.stat.exists == False
+  #when: makefile_stat.stat.exists == False
   shell: ./configure --enable-server  --with-postgresql --with-net-snmp --with-libcurl --with-libcurl2 --with-ssh2 --with-unixodbc
   args:
     chdir: zabbix-3.0.2/
@@ -90,7 +89,7 @@
 
 - name: Copy HTML files
   become: yes
-  when: htmlindex_stat.stat.exists == False
+  #when: htmlindex_stat.stat.exists == False
   command: cp -a /home/{{ username }}/zabbix-3.0.2/frontends/php/. /var/www/html/zabbix
 
 - name: Delete default nginx symbolic link 
@@ -137,19 +136,7 @@
 - name: Start and enable zabbix-server 
   become: yes
   service: name=zabbix-server state=started enabled=yes
-#
-##TODO Move to own file. cleanup.yml
-##--- Cleanup --- #
-##Delete the .pgpass file
-#- name: Delete pgpassfile 
-#  file: dest=/home/{{ username }}/.pgpass state=absent
-#
-#- name: Delete zabbix archive
-#  file: dest=/home/{{ username }}/zabbix-3.0.2 state=absent
-#
-#- name: Delete zabbix Download
-#  file: dest=/home/{{ username }}/zabbix-3.0.2.tar.gz state=absent
-#
+
 - name: Copy Slack script
   become: yes
   template: src=slack.sh.j2 dest=/usr/local/share/zabbix/alertscripts/slack.sh owner={{ username }} group={{ username }} mode=0775
