@@ -22,6 +22,11 @@ zabbixserver_packages:
     - python-psycopg2
     - libpq-dev
     - snmp-mibs-downloader
+      
+#APC
+#slackurl: https://hooks.slack.com/services/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 
+#Jarvis
+slackurl: https://hooks.slack.com/services/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 
+#zabbix_url: http://apcglobal.mopani.com.zm/zabbix/
 
-slackurl: https://hooks.slack.com/services/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 
-zabbix_url: http://apcglobal.mopani.com.zm/zabbix/
+zabbix_url: http://192.168.3.8/
