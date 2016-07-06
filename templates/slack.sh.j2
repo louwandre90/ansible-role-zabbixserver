@@ -138,7 +138,10 @@ fi
 
 # Add the 'Actions' field if the mix of variables is right (see below) !
 if [[ ( "${event_id}" != "" && ( "${message_type}" == "PROBLEM" || "${message_type}" == "ACKNOWLEDGED" ) ) ]]; then
-   actions_value="<${zabbix_url}\/acknow.php?eventid=${event_id}|Acknowledge>"
+   # Zabbix versions prior to 3.0:
+   #actions_value="<${zabbix_url}\/acknow.php?eventid=${event_id}|Acknowledge>"
+   # Zabbix version 3.0:
+   actions_value="<${zabbix_url}\/zabbix.php?action=acknowledge.edit&eventids[]=${event_id}|Acknowledge>"
    if [ "${trigger_id}" != "" ]; then
       actions_value="${actions_value}|<${zabbix_url}\/tr_events.php?eventid=${event_id}&triggerid=${trigger_id}|Events>"
    fi
