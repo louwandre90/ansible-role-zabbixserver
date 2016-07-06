@@ -3,6 +3,9 @@
 - name: start zabbix-server
   service: name=zabbix-server state=started
 
+- name: stop zabbix-server
+  service: name=zabbix-server state=stopped
+
 - name: restart nginx
   become: yes
   service: name=nginx state=restarted
