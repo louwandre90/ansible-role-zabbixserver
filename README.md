@@ -1,6 +1,5 @@
 ansible-role-zabbixServer
 =========
-[![Travis](https://img.shields.io/travis/louwandre90/ansible-role-zabbixServer.svg?style=flat-square)](https://travis-ci.org/louwandre90/ansible-role-zabbixServer)
 [![Ansible Role](https://img.shields.io/badge/role-louwandre90.zabbixServer-blue.svg?style=flat-square)](https://galaxy.ansible.com/louwandre90/zabbixServer/)
 
 This role installs Zabbix Server on Debian:
